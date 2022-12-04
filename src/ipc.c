@@ -92,6 +92,53 @@ rt_inline rt_err_t _ipc_object_init(struct rt_ipc_object *ipc)
 }
 
 
+rt_inline rt_err_t _ipc_list_insert(rt_list_t        *list,
+                                       struct rt_thread *thread,
+                                       rt_uint8_t        flag)
+{
+
+    switch (flag)
+    {
+    case RT_IPC_FLAG_FIFO:
+        rt_list_insert_before(list, &(thread->tlist));
+        break; /* RT_IPC_FLAG_FIFO */
+
+    case RT_IPC_FLAG_PRIO:
+        {
+            struct rt_list_node *n;
+            struct rt_thread *sthread;
+
+            /* find a suitable position */
+            for (n = list->next; n != list; n = n->next)
+            {
+                sthread = rt_list_entry(n, struct rt_thread, tlist);
+
+                /* find out */
+                if (thread->current_priority < sthread->current_priority)
+                {
+                    /* insert this thread before the sthread */
+                    rt_list_insert_before(&(sthread->tlist), &(thread->tlist));
+                    break;
+                }
+            }
+
+            /*
+             * not found a suitable position,
+             * append to the end of suspend_thread list
+             */
+            if (n == list)
+                rt_list_insert_before(list, &(thread->tlist));
+        }
+        break;/* RT_IPC_FLAG_PRIO */
+
+    default:
+        RT_ASSERT(0);
+        break;
+    }
+
+    return RT_EOK;
+}
+
 /**
  * @brief    This function will suspend a thread to a IPC object list.
  *
@@ -134,46 +181,7 @@ rt_inline rt_err_t _ipc_list_suspend(rt_list_t        *list,
         return ret;
     }
 
-    switch (flag)
-    {
-    case RT_IPC_FLAG_FIFO:
-        rt_list_insert_before(list, &(thread->tlist));
-        break; /* RT_IPC_FLAG_FIFO */
-
-    case RT_IPC_FLAG_PRIO:
-        {
-            struct rt_list_node *n;
-            struct rt_thread *sthread;
-
-            /* find a suitable position */
-            for (n = list->next; n != list; n = n->next)
-            {
-                sthread = rt_list_entry(n, struct rt_thread, tlist);
-
-                /* find out */
-                if (thread->current_priority < sthread->current_priority)
-                {
-                    /* insert this thread before the sthread */
-                    rt_list_insert_before(&(sthread->tlist), &(thread->tlist));
-                    break;
-                }
-            }
-
-            /*
-             * not found a suitable position,
-             * append to the end of suspend_thread list
-             */
-            if (n == list)
-                rt_list_insert_before(list, &(thread->tlist));
-        }
-        break;/* RT_IPC_FLAG_PRIO */
-
-    default:
-        RT_ASSERT(0);
-        break;
-    }
-
-    return RT_EOK;
+    return _ipc_list_insert(list, thread, flag);
 }
 
 
@@ -797,19 +805,40 @@ rt_inline void _thread_update_priority(struct rt_thread *thread, rt_uint8_t prio
             rt_uint8_t mutex_priority;
             struct rt_mutex* pending_mutex = (struct rt_mutex *)pending_obj;
 
-            /* re-insert thread to suspended thread list */
-            rt_list_remove(&(thread->tlist));
-
-            ret = _ipc_list_suspend(&(pending_mutex->parent.suspend_thread),
-                                thread,
-                                pending_mutex->parent.parent.flag,
-                                suspend_flag);
-            if (ret != RT_EOK)
+            if(pending_mutex->parent.parent.flag == RT_IPC_FLAG_PRIO)
             {
-                /* TODO */
-                return ;
-            }
+                /* re-insert thread to suspended thread list */
+                rt_list_remove(&(thread->tlist));
 
+                ret = _ipc_list_insert(&(pending_mutex->parent.suspend_thread),
+                                    thread,
+                                    pending_mutex->parent.parent.flag);
+                if (ret != RT_EOK)
+                {
+                    /* TODO */
+                    return ;
+                }
+            }
+            else //RT_IPC_FLAG_PRIO
+            {
+                //thread 之前的 所有挂起线程 都调整优先级
+                struct rt_thread *temp_thread;
+                rt_list_t *node = RT_NULL;
+
+                rt_list_for_each(node, &(pending_mutex->parent.suspend_thread))
+                {
+                    temp_thread = rt_list_entry(node, struct rt_thread, tlist);
+
+                    if(temp_thread->current_priority > priority)
+                    {
+                        rt_thread_control(temp_thread,
+                                        RT_THREAD_CTRL_CHANGE_PRIORITY,
+                                        &priority);
+                    }
+                    if(temp_thread == thread)
+                        break;
+                }
+            }
             /* update priority */
             _mutex_update_priority(pending_mutex);
             /* change the priority of mutex owner thread */
@@ -1199,11 +1228,8 @@ static rt_err_t _rt_mutex_take(rt_mutex_t mutex, rt_int32_t timeout, int suspend
                 if (mutex->ceiling_priority < mutex->owner->current_priority)
                     _thread_update_priority(mutex->owner, mutex->ceiling_priority, suspend_flag);
             }
-            else
-            {
-                /* insert mutex to thread's taken object list */
-                rt_list_insert_after(&thread->taken_object_list, &mutex->taken_list);
-            }
+            /* insert mutex to thread's taken object list */
+            rt_list_insert_after(&thread->taken_object_list, &mutex->taken_list);
         }
         else
         {
@@ -1429,17 +1455,16 @@ rt_err_t rt_mutex_release(rt_mutex_t mutex)
     /* if no hold */
     if (mutex->hold == 0)
     {
+        rt_uint8_t priority = 0xff;
+
         /* remove mutex from thread's taken list */
         rt_list_remove(&mutex->taken_list);
 
+        /* get the highest priority in the taken list of thread */
+        priority = _thread_get_mutex_priority(thread);
         /* whether change the thread priority */
-        if ((mutex->ceiling_priority != 0xFF) || (thread->current_priority == mutex->priority))
+        if (priority != thread->current_priority)
         {
-            rt_uint8_t priority = 0xff;
-
-            /* get the highest priority in the taken list of thread */
-            priority = _thread_get_mutex_priority(thread);
-
             rt_thread_control(thread,
                               RT_THREAD_CTRL_CHANGE_PRIORITY,
                               &priority);

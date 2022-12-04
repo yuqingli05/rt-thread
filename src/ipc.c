@@ -805,40 +805,18 @@ rt_inline void _thread_update_priority(struct rt_thread *thread, rt_uint8_t prio
             rt_uint8_t mutex_priority;
             struct rt_mutex* pending_mutex = (struct rt_mutex *)pending_obj;
 
-            if(pending_mutex->parent.parent.flag == RT_IPC_FLAG_PRIO)
+            /* re-insert thread to suspended thread list */
+            rt_list_remove(&(thread->tlist));
+
+            ret = _ipc_list_insert(&(pending_mutex->parent.suspend_thread),
+                                thread,
+                                pending_mutex->parent.parent.flag);
+            if (ret != RT_EOK)
             {
-                /* re-insert thread to suspended thread list */
-                rt_list_remove(&(thread->tlist));
-
-                ret = _ipc_list_insert(&(pending_mutex->parent.suspend_thread),
-                                    thread,
-                                    pending_mutex->parent.parent.flag);
-                if (ret != RT_EOK)
-                {
-                    /* TODO */
-                    return ;
-                }
+                /* TODO */
+                return ;
             }
-            else //RT_IPC_FLAG_PRIO
-            {
-                //thread 之前的 所有挂起线程 都调整优先级
-                struct rt_thread *temp_thread;
-                rt_list_t *node = RT_NULL;
-
-                rt_list_for_each(node, &(pending_mutex->parent.suspend_thread))
-                {
-                    temp_thread = rt_list_entry(node, struct rt_thread, tlist);
-
-                    if(temp_thread->current_priority > priority)
-                    {
-                        rt_thread_control(temp_thread,
-                                        RT_THREAD_CTRL_CHANGE_PRIORITY,
-                                        &priority);
-                    }
-                    if(temp_thread == thread)
-                        break;
-                }
-            }
+            
             /* update priority */
             _mutex_update_priority(pending_mutex);
             /* change the priority of mutex owner thread */

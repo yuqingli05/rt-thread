@@ -118,8 +118,10 @@ struct rt_device_pm
 
 struct rt_pm_module
 {
+#ifdef PM_ENABLE_DEBUG
     char name[RT_NAME_MAX]; /* debug name */
-    rt_uint8_t sleep_mode;  /* mode sleep mode */
+#endif
+    rt_uint8_t sleep_mode; /* mode sleep mode */
     rt_list_t list;
 };
 
@@ -182,13 +184,13 @@ void rt_pm_notify_set(void (*notify)(rt_uint8_t event, rt_uint8_t mode, void *da
 
 rt_uint8_t rt_pm_get_sleep_mode(void);
 rt_uint8_t rt_pm_get_run_mode(void);
-struct rt_pm *rt_pm_get_handle(void);
 
 void rt_system_pm_init(const struct rt_pm_ops *ops,
                        rt_uint8_t timer_mask,
                        void *user_data);
 
 /* 模块PM管理 只需要 rt_pm_module_set_mode 改变模块支持的最低运行模式。 */
+/* 模块采用，低功耗请求。模块设置自身可以正常运行的 最佳功耗模式。pm模块自动匹配 最高优先级  */
 void rt_pm_module_set_sleepmode(rt_pm_module_t moudle, rt_uint8_t sleep_mode);
 rt_uint8_t rt_pm_module_get_sleepmode(rt_pm_module_t moudle);
 rt_err_t rt_pm_module_init(rt_pm_module_t moudle, char *name);

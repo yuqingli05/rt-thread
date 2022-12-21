@@ -147,9 +147,6 @@ config RT_USING_PM
     default n
 
     if RT_USING_PM
-        config PM_TICKLESS_THRESHOLD_TIME
-            int "PM tickless threashold time"
-            default 2
 
         config PM_USING_CUSTOM_CONFIG
             bool "PM using custom pm config"
@@ -159,8 +156,12 @@ config RT_USING_PM
             bool "PM Enable Debug"
             default n
 
-        config PM_ENABLE_SUSPEND_SLEEP_MODE
-            bool "PM Device suspend change sleep mode"
+        config PM_ENABLE_DEVICE
+            bool "PM Enable Device"
+            default n
+        
+        config PM_ENABLE_NOTIFY
+            bool "PM Enable Notify"
             default n
 
         config PM_ENABLE_THRESHOLD_SLEEP_MODE
@@ -180,6 +181,13 @@ config RT_USING_PM
                 int "PM standby mode threashold time"
                 default 100
         endif
+        
+        if !PM_ENABLE_THRESHOLD_SLEEP_MODE
+            config PM_TICKLESS_THRESHOLD_TIME
+                int "PM tickless threashold time"
+                default 2
+        endif
+
     endif
 
 config RT_USING_RTC

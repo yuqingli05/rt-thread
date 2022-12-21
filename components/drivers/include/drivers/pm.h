@@ -48,75 +48,45 @@ enum
 };
 
 /* The name of all modes used in the msh command "pm_dump" */
-#define PM_SLEEP_MODE_NAMES     \
-{                               \
-    "None Mode",                \
-    "Idle Mode",                \
-    "LightSleep Mode",          \
-    "DeepSleep Mode",           \
-    "Standby Mode",             \
-    "Shutdown Mode",            \
-}
+#define PM_SLEEP_MODE_NAMES    \
+    {                          \
+        "None Mode",           \
+            "Idle Mode",       \
+            "LightSleep Mode", \
+            "DeepSleep Mode",  \
+            "Standby Mode",    \
+            "Shutdown Mode",   \
+    }
 
-#define PM_RUN_MODE_NAMES       \
-{                               \
-    "High Speed",               \
-    "Normal Speed",             \
-    "Medium Speed",             \
-    "Low Mode",                 \
-}
+#define PM_RUN_MODE_NAMES   \
+    {                       \
+        "High Speed",       \
+            "Normal Speed", \
+            "Medium Speed", \
+            "Low Mode",     \
+    }
 
-#ifndef PM_USING_CUSTOM_CONFIG
-/**
- * Modules used for
- * pm_module_request(PM_BOARD_ID, PM_SLEEP_MODE_IDLE)
- * pm_module_release(PM_BOARD_ID, PM_SLEEP_MODE_IDLE)
- * pm_module_release_all(PM_BOARD_ID, PM_SLEEP_MODE_IDLE)
- */
-enum pm_module_id {
-    PM_NONE_ID = 0,
-    PM_POWER_ID,
-    PM_BOARD_ID,
-    PM_BSP_ID,
-    PM_MAIN_ID,
-    PM_PMS_ID,
-    PM_PMC_ID,
-    PM_TASK_ID,
-    PM_SPI_ID,
-    PM_I2C_ID,
-    PM_UART_ID,
-    PM_CAN_ID,
-    PM_ETH_ID,
-    PM_SENSOR_ID,
-    PM_LCD_ID,
-    PM_KEY_ID,
-    PM_TP_ID,
-    PM_MODULE_MAX_ID, /* enum must! */
-};
-
-#else
-
+#ifdef PM_USING_CUSTOM_CONFIG
 #include <pm_cfg.h>
-
 #endif /* PM_USING_CUSTOM_CONFIG */
 
 #ifndef RT_PM_DEFAULT_SLEEP_MODE
-#define RT_PM_DEFAULT_SLEEP_MODE        PM_SLEEP_MODE_NONE
+#define RT_PM_DEFAULT_SLEEP_MODE PM_SLEEP_MODE_NONE
 #endif
 
 #ifndef RT_PM_DEFAULT_DEEPSLEEP_MODE
-#define RT_PM_DEFAULT_DEEPSLEEP_MODE    PM_SLEEP_MODE_DEEP
+#define RT_PM_DEFAULT_DEEPSLEEP_MODE PM_SLEEP_MODE_DEEP
 #endif
 
 #ifndef RT_PM_DEFAULT_RUN_MODE
-#define RT_PM_DEFAULT_RUN_MODE          PM_RUN_MODE_NORMAL_SPEED
+#define RT_PM_DEFAULT_RUN_MODE PM_RUN_MODE_NORMAL_SPEED
 #endif
 
 /**
  * device control flag to request or release power
  */
-#define RT_PM_DEVICE_CTRL_RELEASE   (RT_DEVICE_CTRL_BASE(PM) + 0x00)
-#define RT_PM_DEVICE_CTRL_REQUEST   (RT_DEVICE_CTRL_BASE(PM) + 0x01)
+#define RT_PM_DEVICE_CTRL_RELEASE (RT_DEVICE_CTRL_BASE(PM) + 0x00)
+#define RT_PM_DEVICE_CTRL_REQUEST (RT_DEVICE_CTRL_BASE(PM) + 0x01)
 
 struct rt_pm;
 
@@ -143,15 +113,17 @@ struct rt_device_pm
 {
     const struct rt_device *device;
     const struct rt_device_pm_ops *ops;
+    rt_uint8_t sleep_mode;
 };
 
 struct rt_pm_module
 {
-    rt_uint8_t req_status;
-    rt_bool_t busy_flag;
-    rt_uint32_t timeout;
-    rt_uint32_t start_time;
+    char name[RT_NAME_MAX]; /* debug name */
+    rt_uint8_t sleep_mode;  /* mode sleep mode */
+    rt_list_t list;
 };
+
+typedef struct rt_pm_module *rt_pm_module_t;
 
 /**
  * power management
@@ -162,18 +134,17 @@ struct rt_pm
 
     /* modes */
     rt_uint8_t modes[PM_SLEEP_MODE_MAX];
-    rt_uint8_t sleep_mode;    /* current sleep mode */
-    rt_uint8_t run_mode;      /* current running mode */
+    rt_uint8_t sleep_mode; /* current sleep mode */
+    rt_uint8_t run_mode;   /* current running mode */
 
-    /* modules request status*/
-    struct rt_pm_module module_status[PM_MODULE_MAX_ID];
+    /* modules list*/
+    rt_list_t module_list;
 
-    /* sleep request table */
-    rt_uint32_t sleep_status[PM_SLEEP_MODE_MAX - 1][(PM_MODULE_MAX_ID + 31) / 32];
-
+#ifdef PM_ENABLE_DEVICE
     /* the list of device, which has PM feature */
     rt_uint8_t device_pm_number;
     struct rt_device_pm *device_pm;
+#endif
 
     /* if the mode has timer, the corresponding bit is 1*/
     rt_uint8_t timer_mask;
@@ -194,36 +165,35 @@ struct rt_pm_notify
     void *data;
 };
 
+/* 传统pm管理 全局管理*/
 void rt_pm_request(rt_uint8_t sleep_mode);
 void rt_pm_release(rt_uint8_t sleep_mode);
 void rt_pm_release_all(rt_uint8_t sleep_mode);
 int rt_pm_run_enter(rt_uint8_t run_mode);
 
+#ifdef PM_ENABLE_DEVICE
 void rt_pm_device_register(struct rt_device *device, const struct rt_device_pm_ops *ops);
 void rt_pm_device_unregister(struct rt_device *device);
+#endif
 
+#ifdef PM_ENABLE_NOTIFY
 void rt_pm_notify_set(void (*notify)(rt_uint8_t event, rt_uint8_t mode, void *data), void *data);
-void rt_pm_default_set(rt_uint8_t sleep_mode);
+#endif
 
-void rt_system_pm_init(const struct rt_pm_ops *ops,
-                       rt_uint8_t              timer_mask,
-                       void                 *user_data);
-void rt_pm_module_request(uint8_t module_id, rt_uint8_t sleep_mode);
-void rt_pm_module_release(uint8_t module_id, rt_uint8_t sleep_mode);
-void rt_pm_module_release_all(uint8_t module_id, rt_uint8_t sleep_mode);
-void rt_pm_module_delay_sleep(rt_uint8_t module_id, rt_tick_t timeout);
-rt_uint32_t rt_pm_module_get_status(void);
 rt_uint8_t rt_pm_get_sleep_mode(void);
+rt_uint8_t rt_pm_get_run_mode(void);
 struct rt_pm *rt_pm_get_handle(void);
 
-/* sleep : request or release */
-void rt_pm_sleep_request(rt_uint16_t module_id, rt_uint8_t mode);
-void rt_pm_sleep_release(rt_uint16_t module_id, rt_uint8_t mode);
-void rt_pm_sleep_none_request(rt_uint16_t module_id);
-void rt_pm_sleep_none_release(rt_uint16_t module_id);
-void rt_pm_sleep_idle_request(rt_uint16_t module_id);
-void rt_pm_sleep_idle_release(rt_uint16_t module_id);
-void rt_pm_sleep_light_request(rt_uint16_t module_id);
-void rt_pm_sleep_light_release(rt_uint16_t module_id);
+void rt_system_pm_init(const struct rt_pm_ops *ops,
+                       rt_uint8_t timer_mask,
+                       void *user_data);
+
+/* 模块PM管理 只需要 rt_pm_module_set_mode 改变模块支持的最低运行模式。 */
+void rt_pm_module_set_sleepmode(rt_pm_module_t moudle, rt_uint8_t sleep_mode);
+rt_uint8_t rt_pm_module_get_sleepmode(rt_pm_module_t moudle);
+rt_err_t rt_pm_module_init(rt_pm_module_t moudle, char *name);
+void rt_pm_module_detach(rt_pm_module_t moudle);
+rt_pm_module_t rt_pm_module_create(char *name);
+void rt_pm_module_delete(rt_pm_module_t moudle);
 
 #endif /* __PM_H__ */

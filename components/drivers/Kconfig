@@ -148,10 +148,6 @@ config RT_USING_PM
 
     if RT_USING_PM
 
-        config PM_USING_CUSTOM_CONFIG
-            bool "PM using custom pm config"
-            default n
-
         config PM_ENABLE_DEBUG
             bool "PM Enable Debug"
             default n
@@ -167,6 +163,36 @@ config RT_USING_PM
         config PM_ENABLE_THRESHOLD_SLEEP_MODE
             bool "PM using threshold time change sleep mode"
             default n
+            
+        choice
+            prompt "default sleep mode"
+            default PM_DEFAULT_SLEEP_LIGHT
+            config PM_DEFAULT_SLEEP_NONE
+                bool "none"
+            config PM_DEFAULT_SLEEP_IDLE
+                bool "idle"
+            config PM_DEFAULT_SLEEP_LIGHT
+                bool "light"
+            config PM_DEFAULT_SLEEP_DEEP
+                bool "deep"
+            config PM_DEFAULT_SLEEP_STANDBY
+                bool "standby"
+            config PM_DEFAULT_SLEEP_SHUTDOWN
+                bool "shutdown"
+        endchoice
+
+        choice
+            prompt "default run mode"
+            default PM_DEFAULT_RUN_NORMAL
+            config PM_DEFAULT_RUN_HIGH
+                bool "high"
+            config PM_DEFAULT_RUN_NORMAL
+                bool "normal"
+            config PM_DEFAULT_RUN_MEDIUM
+                bool "medium"
+            config PM_DEFAULT_RUN_LOW
+                bool "low"
+        endchoice
 
         if PM_ENABLE_THRESHOLD_SLEEP_MODE
             config PM_LIGHT_THRESHOLD_TIME
@@ -185,7 +211,7 @@ config RT_USING_PM
         if !PM_ENABLE_THRESHOLD_SLEEP_MODE
             config PM_TICKLESS_THRESHOLD_TIME
                 int "PM tickless threashold time"
-                default 2
+                default 5
         endif
 
     endif

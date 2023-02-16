@@ -66,20 +66,36 @@ enum
             "Low Mode",     \
     }
 
-#ifdef PM_USING_CUSTOM_CONFIG
-#include <pm_cfg.h>
-#endif /* PM_USING_CUSTOM_CONFIG */
-
-#ifndef RT_PM_DEFAULT_SLEEP_MODE
+#ifdef PM_DEFAULT_SLEEP_NONE
 #define RT_PM_DEFAULT_SLEEP_MODE PM_SLEEP_MODE_NONE
 #endif
-
-#ifndef RT_PM_DEFAULT_DEEPSLEEP_MODE
-#define RT_PM_DEFAULT_DEEPSLEEP_MODE PM_SLEEP_MODE_DEEP
+#ifdef PM_DEFAULT_SLEEP_IDLE
+#define RT_PM_DEFAULT_SLEEP_MODE PM_SLEEP_MODE_IDLE
+#endif
+#ifdef PM_DEFAULT_SLEEP_LIGHT
+#define RT_PM_DEFAULT_SLEEP_MODE PM_SLEEP_MODE_LIGHT
+#endif
+#ifdef PM_DEFAULT_SLEEP_DEEP
+#define RT_PM_DEFAULT_SLEEP_MODE PM_SLEEP_MODE_DEEP
+#endif
+#ifdef PM_DEFAULT_SLEEP_STANDBY
+#define RT_PM_DEFAULT_SLEEP_MODE PM_SLEEP_MODE_STANDBY
+#endif
+#ifdef PM_DEFAULT_SLEEP_SHUTDOWN
+#define RT_PM_DEFAULT_SLEEP_MODE PM_SLEEP_MODE_SHUTDOWN
 #endif
 
-#ifndef RT_PM_DEFAULT_RUN_MODE
+#ifdef PM_DEFAULT_RUN_HIGH
+#define RT_PM_DEFAULT_RUN_MODE PM_RUN_MODE_HIGH_SPEED
+#endif
+#ifdef PM_DEFAULT_RUN_NORMAL
 #define RT_PM_DEFAULT_RUN_MODE PM_RUN_MODE_NORMAL_SPEED
+#endif
+#ifdef PM_DEFAULT_RUN_MEDIUM
+#define RT_PM_DEFAULT_RUN_MODE PM_RUN_MODE_MEDIUM_SPEED
+#endif
+#ifdef PM_DEFAULT_RUN_LOW
+#define RT_PM_DEFAULT_RUN_MODE PM_RUN_MODE_LOW_SPEED
 #endif
 
 /**
@@ -116,16 +132,15 @@ struct rt_device_pm
     rt_uint8_t sleep_mode;
 };
 
-struct rt_pm_module
+struct rt_pm_id
 {
 #ifdef PM_ENABLE_DEBUG
+    // 调试输出信息用到
     char name[RT_NAME_MAX]; /* debug name */
+    rt_slist_t list;
 #endif
     rt_uint8_t sleep_mode; /* mode sleep mode */
-    rt_list_t list;
 };
-
-typedef struct rt_pm_module *rt_pm_module_t;
 
 /**
  * power management
@@ -138,9 +153,6 @@ struct rt_pm
     rt_uint8_t modes[PM_SLEEP_MODE_MAX];
     rt_uint8_t sleep_mode; /* current sleep mode */
     rt_uint8_t run_mode;   /* current running mode */
-
-    /* modules list*/
-    rt_list_t module_list;
 
 #ifdef PM_ENABLE_DEVICE
     /* the list of device, which has PM feature */
@@ -173,29 +185,24 @@ void rt_pm_release(rt_uint8_t sleep_mode);
 void rt_pm_release_all(rt_uint8_t sleep_mode);
 int rt_pm_run_enter(rt_uint8_t run_mode);
 
+/* 获取当前模式*/
+rt_uint8_t rt_pm_get_sleep_mode(void);
+rt_uint8_t rt_pm_get_run_mode(void);
+
 #ifdef PM_ENABLE_DEVICE
 void rt_pm_device_register(struct rt_device *device, const struct rt_device_pm_ops *ops);
 void rt_pm_device_unregister(struct rt_device *device);
 #endif
 
-#ifdef PM_ENABLE_NOTIFY
-void rt_pm_notify_set(void (*notify)(rt_uint8_t event, rt_uint8_t mode, void *data), void *data);
-#endif
-
-rt_uint8_t rt_pm_get_sleep_mode(void);
-rt_uint8_t rt_pm_get_run_mode(void);
-
 void rt_system_pm_init(const struct rt_pm_ops *ops,
                        rt_uint8_t timer_mask,
                        void *user_data);
 
-/* 模块PM管理 只需要 rt_pm_module_set_mode 改变模块支持的最低运行模式。 */
-/* 模块采用，低功耗请求。模块设置自身可以正常运行的 最佳功耗模式。pm模块自动匹配 最高优先级  */
-void rt_pm_module_set_sleepmode(rt_pm_module_t moudle, rt_uint8_t sleep_mode);
-rt_uint8_t rt_pm_module_get_sleepmode(rt_pm_module_t moudle);
-rt_err_t rt_pm_module_init(rt_pm_module_t moudle, char *name);
-void rt_pm_module_detach(rt_pm_module_t moudle);
-rt_pm_module_t rt_pm_module_create(char *name);
-void rt_pm_module_delete(rt_pm_module_t moudle);
+// 向PM连接一个管理模块 通过设置模块的最休眠模式来管理休眠
+// 实际休眠模式只能 小于等于 所有模块值
+void rt_pm_id_set_sleepmode(struct rt_pm_id *id, rt_uint8_t sleep_mode);
+rt_uint8_t rt_pm_id_get_sleepmode(struct rt_pm_id *id);
+void rt_pm_id_init(struct rt_pm_id *id, char *name);
+void rt_pm_id_detach(struct rt_pm_id *id);
 
 #endif /* __PM_H__ */

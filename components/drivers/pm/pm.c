@@ -36,19 +36,19 @@
 #else
 
 #ifndef PM_TICKLESS_THRESHOLD_TIME
-#define PM_TICKLESS_THRESHOLD_TIME 2
+#define PM_TICKLESS_THRESHOLD_TIME 5
 #endif
 
 #endif
 
 static struct rt_pm _pm;
 
-#ifdef PM_ENABLE_DEBUG
-rt_tick_t SleepModeTimeSpent[PM_SLEEP_MODE_MAX] = {0};
-#endif
-
 #ifdef PM_ENABLE_NOTIFY
 static struct rt_pm_notify _pm_notify;
+#endif
+
+#ifdef PM_ENABLE_DEBUG
+rt_slist_t rt_pm_id_list = {.next = NULL};
 #endif
 
 static rt_uint8_t _pm_init_flag = 0;
@@ -65,7 +65,7 @@ RT_WEAK void rt_pm_exit_critical(rt_uint32_t ctx, rt_uint8_t sleep_mode)
 }
 
 /* lptimer start */
-static void pm_lptimer_start(struct rt_pm *pm, uint32_t timeout)
+rt_inline void pm_lptimer_start(struct rt_pm *pm, uint32_t timeout)
 {
     if (pm->ops == RT_NULL)
         return;
@@ -75,7 +75,7 @@ static void pm_lptimer_start(struct rt_pm *pm, uint32_t timeout)
 }
 
 /* lptimer stop */
-static void pm_lptimer_stop(struct rt_pm *pm)
+rt_inline void pm_lptimer_stop(struct rt_pm *pm)
 {
     if (pm->ops == RT_NULL)
         return;
@@ -85,7 +85,7 @@ static void pm_lptimer_stop(struct rt_pm *pm)
 }
 
 /* lptimer get timeout tick */
-static rt_tick_t pm_lptimer_get_timeout(struct rt_pm *pm)
+rt_inline rt_tick_t pm_lptimer_get_timeout(struct rt_pm *pm)
 {
     if (pm->ops == RT_NULL)
         return RT_TICK_MAX;
@@ -97,13 +97,23 @@ static rt_tick_t pm_lptimer_get_timeout(struct rt_pm *pm)
 }
 
 /* enter sleep mode */
-static void pm_sleep(struct rt_pm *pm, uint8_t sleep_mode)
+rt_inline void pm_sleep(struct rt_pm *pm, uint8_t sleep_mode)
 {
     if (pm->ops == RT_NULL)
         return;
 
     if (pm->ops->sleep != RT_NULL)
         pm->ops->sleep(pm, sleep_mode);
+}
+
+/* enter sleep mode */
+rt_inline void pm_run(struct rt_pm *pm, rt_uint8_t run_mode)
+{
+    if (pm->ops == RT_NULL)
+        return;
+
+    if (pm->ops->run != RT_NULL)
+        pm->ops->run(pm, run_mode);
 }
 
 #ifdef PM_ENABLE_DEVICE
@@ -238,57 +248,19 @@ void rt_pm_device_unregister(struct rt_device *device)
 #endif
 
 /**
- * This function will update the system clock frequency when idle
+ * 更新休眠模式
  */
-static void _pm_frequency_scaling(struct rt_pm *pm)
+rt_inline void _pm_update_sleep_mode(struct rt_pm *pm)
 {
-    register rt_base_t level;
-
-    if (pm->flags & RT_PM_FREQUENCY_PENDING)
-    {
-        level = rt_hw_interrupt_disable();
-        /* change system runing mode */
-        pm->ops->run(pm, pm->run_mode);
-#ifdef PM_ENABLE_DEVICE
-        /* changer device frequency */
-        _pm_device_frequency_change(pm, pm->run_mode);
-#endif
-        pm->flags &= ~RT_PM_FREQUENCY_PENDING;
-        rt_hw_interrupt_enable(level);
-    }
-}
-
-/**
- * This function selects the sleep mode according to the rt_pm_request/rt_pm_release count.
- */
-static rt_uint8_t _pm_select_sleep_mode(struct rt_pm *pm)
-{
-    register rt_base_t level;
     int index;
-    rt_uint8_t mode;
-
-    level = rt_hw_interrupt_disable();
-
-    if (rt_list_isempty(&pm->module_list))
-    {
-        mode = RT_PM_DEFAULT_DEEPSLEEP_MODE;
-    }
-    else
-    {
-        mode = rt_list_entry(&pm->module_list.next, struct rt_pm_module, list)->sleep_mode;
-    }
-
     for (index = PM_SLEEP_MODE_NONE; index < PM_SLEEP_MODE_MAX; index++)
     {
         if (pm->modes[index])
         {
-            if (index < mode)
-                mode = index;
+            pm->sleep_mode = index;
             break;
         }
     }
-    rt_hw_interrupt_enable(level);
-    return mode;
 }
 
 RT_WEAK rt_tick_t pm_timer_next_timeout_tick(rt_uint8_t mode)
@@ -303,34 +275,6 @@ RT_WEAK rt_tick_t pm_timer_next_timeout_tick(rt_uint8_t mode)
     }
 
     return RT_TICK_MAX;
-}
-
-static rt_uint8_t _pm_add_sleep_moudle(struct rt_pm *pm, struct rt_pm_module *moudle)
-{
-    rt_list_t *pos;
-    register rt_base_t level;
-
-    level = rt_hw_interrupt_disable();
-
-    rt_list_for_each(pos, &pm->module_list)
-    {
-        struct rt_pm_module *temp = rt_list_entry(pos, struct rt_pm_module, list);
-        if (temp->sleep_mode > moudle->sleep_mode)
-            break;
-    }
-
-    rt_list_insert_before(pos, &moudle->list);
-
-    rt_hw_interrupt_enable(level);
-}
-
-static rt_uint8_t _pm_del_sleep_moudle(struct rt_pm *pm, struct rt_pm_module *moudle)
-{
-    register rt_base_t level;
-
-    level = rt_hw_interrupt_disable();
-    rt_list_remove(&moudle->list);
-    rt_hw_interrupt_enable(level);
 }
 
 /**
@@ -381,59 +325,49 @@ RT_WEAK rt_uint8_t pm_get_sleep_threshold_mode(rt_uint8_t cur_mode, rt_tick_t ti
 /**
  * This function changes the power sleep mode base on the result of selection
  */
-static void _pm_change_sleep_mode(struct rt_pm *pm)
+rt_inline void _pm_change_sleep_mode(struct rt_pm *pm)
 {
-    rt_tick_t timeout_tick, delta_tick;
+    rt_tick_t timeout_tick = 0, delta_tick = 0;
     register rt_base_t level;
-    uint8_t sleep_mode = PM_SLEEP_MODE_DEEP;
+    uint8_t sleep_mode = pm->sleep_mode;
 
-    level = rt_pm_enter_critical(pm->sleep_mode);
-
-    /* judge sleep mode from module request */
-    pm->sleep_mode = _pm_select_sleep_mode(pm);
-
-    if (pm->sleep_mode == PM_SLEEP_MODE_NONE)
+    if (sleep_mode > PM_SLEEP_MODE_NONE)
     {
-        rt_pm_exit_critical(level, pm->sleep_mode);
-    }
-    else
-    {
-#ifdef PM_ENABLE_DEBUG
-        rt_tick_t start_tick = rt_tick_get();
-#endif
+        level = rt_pm_enter_critical(sleep_mode);
+
         /* Tickless*/
-        if (pm->timer_mask & (0x01 << pm->sleep_mode))
+        if (pm->timer_mask & (0x01 << sleep_mode))
         {
-            timeout_tick = pm_timer_next_timeout_tick(pm->sleep_mode);
+            timeout_tick = pm_timer_next_timeout_tick(sleep_mode);
             timeout_tick = timeout_tick - rt_tick_get();
             /* Judge sleep_mode from threshold time */
-            pm->sleep_mode = pm_get_sleep_threshold_mode(pm->sleep_mode, timeout_tick);
+            sleep_mode = pm_get_sleep_threshold_mode(sleep_mode, timeout_tick);
         }
+
 #ifdef PM_ENABLE_DEVICE
         /* Suspend all peripheral device */
-        int ret = _pm_device_suspend(pm, pm->sleep_mode);
-        if (pm->sleep_mode > ret)
+        int ret = _pm_device_suspend(pm, sleep_mode);
+        if (sleep_mode > ret)
         {
-            pm->sleep_mode = ret;
+            sleep_mode = ret;
         }
 #endif
-
-        if (pm->timer_mask & (0x01 << pm->sleep_mode))
-        {
-            pm_lptimer_start(pm, timeout_tick);
-        }
 
 #ifdef PM_ENABLE_NOTIFY
         /* Notify app will enter sleep mode */
         if (_pm_notify.notify)
-            _pm_notify.notify(RT_PM_ENTER_SLEEP, pm->sleep_mode, _pm_notify.data);
+            _pm_notify.notify(RT_PM_ENTER_SLEEP, sleep_mode, _pm_notify.data);
 #endif
 
+        if (pm->timer_mask & (0x01 << sleep_mode))
+        {
+            pm_lptimer_start(pm, timeout_tick);
+        }
         /* enter lower power state */
-        pm_sleep(pm, pm->sleep_mode);
+        pm_sleep(pm, sleep_mode);
 
         /* wake up from lower power state*/
-        if (pm->timer_mask & (0x01 << pm->sleep_mode))
+        if (pm->timer_mask & (0x01 << sleep_mode))
         {
             delta_tick = pm_lptimer_get_timeout(pm);
             pm_lptimer_stop(pm);
@@ -443,29 +377,19 @@ static void _pm_change_sleep_mode(struct rt_pm *pm)
             }
         }
 
-#ifdef PM_ENABLE_NOTIFY
-        if (_pm_notify.notify)
-            _pm_notify.notify(RT_PM_EXIT_SLEEP, pm->sleep_mode, _pm_notify.data);
-#endif
-
 #ifdef PM_ENABLE_DEVICE
         /* resume all device */
         _pm_device_resume(pm);
 #endif
 
-#ifdef PM_ENABLE_DEBUG
-        rt_tick_t diff_tick = rt_tick_get() - start_tick;
-        SleepModeTimeSpent[pm->sleep_mode] += diff_tick;
-        if (SleepModeTimeSpent[PM_SLEEP_MODE_MAX - 1] < diff_tick)
-        {
-            // save max
-            SleepModeTimeSpent[PM_SLEEP_MODE_MAX - 1] = diff_tick;
-        }
+#ifdef PM_ENABLE_NOTIFY
+        if (_pm_notify.notify)
+            _pm_notify.notify(RT_PM_EXIT_SLEEP, sleep_mode, _pm_notify.data);
 #endif
 
-        rt_pm_exit_critical(level, pm->sleep_mode);
+        rt_pm_exit_critical(level, sleep_mode);
 
-        if (pm->timer_mask & (0x01 << pm->sleep_mode))
+        if (pm->timer_mask & (0x01 << sleep_mode))
         {
             if (delta_tick)
             {
@@ -476,13 +400,32 @@ static void _pm_change_sleep_mode(struct rt_pm *pm)
 }
 
 /**
+ * This function will update the system clock frequency when idle
+ */
+rt_inline void _pm_frequency_scaling(struct rt_pm *pm)
+{
+    register rt_base_t level;
+
+    if (pm->flags & RT_PM_FREQUENCY_PENDING)
+    {
+        level = rt_hw_interrupt_disable();
+        /* change system runing mode */
+        pm->ops->run(pm, pm->run_mode);
+#ifdef PM_ENABLE_DEVICE
+        /* changer device frequency */
+        _pm_device_frequency_change(pm, pm->run_mode);
+#endif
+        pm->flags &= ~RT_PM_FREQUENCY_PENDING;
+        rt_hw_interrupt_enable(level);
+    }
+}
+/**
  * This function will enter corresponding power mode.
  */
 void rt_system_power_manager(void)
 {
     if (_pm_init_flag == 0)
         return;
-
     /* CPU frequency scaling according to the runing mode settings */
     _pm_frequency_scaling(&_pm);
 
@@ -511,6 +454,7 @@ void rt_pm_request(rt_uint8_t mode)
     pm = &_pm;
     if (pm->modes[mode] < 255)
         pm->modes[mode]++;
+    _pm_update_sleep_mode(pm);
     rt_hw_interrupt_enable(level);
 }
 
@@ -536,6 +480,7 @@ void rt_pm_release(rt_uint8_t mode)
     pm = &_pm;
     if (pm->modes[mode] > 0)
         pm->modes[mode]--;
+    _pm_update_sleep_mode(pm);
     rt_hw_interrupt_enable(level);
 }
 
@@ -560,9 +505,44 @@ void rt_pm_release_all(rt_uint8_t mode)
     level = rt_hw_interrupt_disable();
     pm = &_pm;
     pm->modes[mode] = 0;
+    _pm_update_sleep_mode(pm);
     rt_hw_interrupt_enable(level);
 }
+int rt_pm_run_enter(rt_uint8_t mode)
+{
+    register rt_base_t level;
+    struct rt_pm *pm;
 
+    if (_pm_init_flag == 0)
+        return -RT_EIO;
+
+    if (mode > PM_RUN_MODE_MAX)
+        return -RT_EINVAL;
+
+    level = rt_hw_interrupt_disable();
+    pm = &_pm;
+    if (mode != pm->run_mode)
+    {
+        pm->run_mode = mode;
+        if (mode < pm->run_mode)
+        {
+            /* change system runing mode */
+            pm->ops->run(pm, mode);
+#ifdef PM_ENABLE_DEVICE
+            /* changer device frequency */
+            _pm_device_frequency_change(pm, mode);
+#endif
+        }
+        else
+        {
+            pm->flags |= RT_PM_FREQUENCY_PENDING;
+        }
+    }
+
+    rt_hw_interrupt_enable(level);
+
+    return RT_EOK;
+}
 rt_uint8_t rt_pm_get_sleep_mode(void)
 {
     struct rt_pm *pm;
@@ -586,99 +566,52 @@ rt_uint8_t rt_pm_get_run_mode(void)
     return pm->run_mode;
 }
 
-void rt_pm_module_set_sleepmode(rt_pm_module_t moudle, rt_uint8_t sleep_mode)
+void rt_pm_id_set_sleepmode(struct rt_pm_id *id, rt_uint8_t sleep_mode)
 {
-    struct rt_pm *pm;
     register rt_base_t level;
-
-    if (_pm_init_flag == 0)
-        return;
-
-    pm = &_pm;
-
-    if (moudle->sleep_mode != sleep_mode)
-    {
-        level = rt_hw_interrupt_disable();
-        _pm_del_sleep_moudle(pm, moudle);
-        moudle->sleep_mode = sleep_mode;
-        _pm_add_sleep_moudle(pm, moudle);
-        rt_hw_interrupt_enable(level);
-    }
-}
-rt_uint8_t rt_pm_module_get_sleepmode(rt_pm_module_t moudle)
-{
-    if (_pm_init_flag == 0)
-        return RT_PM_DEFAULT_SLEEP_MODE;
-
-    return moudle->sleep_mode;
-}
-rt_err_t rt_pm_module_init(rt_pm_module_t moudle, char *name)
-{
-    struct rt_pm *pm;
-    register rt_base_t level;
-
-    if (_pm_init_flag == 0)
-        return -RT_ERROR;
-
-    pm = &_pm;
     level = rt_hw_interrupt_disable();
-#ifdef PM_ENABLE_DEBUG
-    rt_strncpy(moudle->name, name, sizeof(moudle->name));
-#endif
-    moudle->sleep_mode = RT_PM_DEFAULT_SLEEP_MODE;
-    _pm_add_sleep_moudle(pm, moudle);
+
+    if (id->sleep_mode != sleep_mode)
+    {
+        rt_pm_release(id->sleep_mode);
+        id->sleep_mode = sleep_mode;
+        rt_pm_request(id->sleep_mode);
+    }
+
     rt_hw_interrupt_enable(level);
-
-    return RT_EOK;
 }
-void rt_pm_module_detach(rt_pm_module_t moudle)
+rt_uint8_t rt_pm_id_get_sleepmode(struct rt_pm_id *id)
 {
-    struct rt_pm *pm;
-
-    if (_pm_init_flag == 0)
-        return;
-
-    pm = &_pm;
-    if (moudle)
-    {
-        register rt_base_t level;
-        level = rt_hw_interrupt_disable();
-        _pm_del_sleep_moudle(pm, moudle);
-        rt_hw_interrupt_enable(level);
-    }
+    return id->sleep_mode;
 }
-rt_pm_module_t rt_pm_module_create(char *name)
+void rt_pm_id_init(struct rt_pm_id *id, char *name)
 {
-    if (_pm_init_flag == 0)
-        return NULL;
+    register rt_base_t level;
 
-    struct rt_pm_module *moudle = (struct rt_pm_module *)rt_malloc(sizeof(struct rt_pm_module));
+    level = rt_hw_interrupt_disable();
 
-    if (moudle)
-    {
-        rt_pm_module_init(moudle, name);
-    }
-    return moudle;
-}
-void rt_pm_module_delete(rt_pm_module_t moudle)
-{
-    if (_pm_init_flag == 0)
-        return;
-
-    rt_pm_module_detach(moudle);
-    rt_free(moudle);
-}
-
-#ifdef PM_ENABLE_NOTIFY
-/**
- * This function set notification callback for application
- */
-void rt_pm_notify_set(void (*notify)(rt_uint8_t event, rt_uint8_t mode, void *data), void *data)
-{
-    _pm_notify.notify = notify;
-    _pm_notify.data = data;
-}
+#ifdef PM_ENABLE_DEBUG
+    rt_strncpy(id->name, name, RT_NAME_MAX);
+    rt_slist_insert(&rt_pm_id_list, &id->list);
 #endif
+
+    id->sleep_mode = RT_PM_DEFAULT_SLEEP_MODE;
+
+    rt_hw_interrupt_enable(level);
+}
+void rt_pm_id_detach(struct rt_pm_id *id)
+{
+    register rt_base_t level;
+    level = rt_hw_interrupt_disable();
+    rt_pm_release(id->sleep_mode);
+
+#ifdef PM_ENABLE_DEBUG
+    rt_slist_remove(&rt_pm_id_list, &id->list);
+#endif
+
+    rt_hw_interrupt_enable(level);
+}
+
 /**
  * RT-Thread device interface for PM device
  */
@@ -751,38 +684,6 @@ static rt_err_t _rt_pm_device_control(rt_device_t dev,
     return RT_EOK;
 }
 
-int rt_pm_run_enter(rt_uint8_t mode)
-{
-    register rt_base_t level;
-    struct rt_pm *pm;
-
-    if (_pm_init_flag == 0)
-        return -RT_EIO;
-
-    if (mode > PM_RUN_MODE_MAX)
-        return -RT_EINVAL;
-
-    level = rt_hw_interrupt_disable();
-    pm = &_pm;
-    if (mode < pm->run_mode)
-    {
-        /* change system runing mode */
-        pm->ops->run(pm, mode);
-#ifdef PM_ENABLE_DEVICE
-        /* changer device frequency */
-        _pm_device_frequency_change(pm, mode);
-#endif
-    }
-    else
-    {
-        pm->flags |= RT_PM_FREQUENCY_PENDING;
-    }
-    pm->run_mode = mode;
-    rt_hw_interrupt_enable(level);
-
-    return RT_EOK;
-}
-
 #ifdef RT_USING_DEVICE_OPS
 const static struct rt_device_ops pm_ops =
     {
@@ -831,12 +732,9 @@ void rt_system_pm_init(const struct rt_pm_ops *ops,
     /* register PM device to the system */
     rt_device_register(device, "pm", RT_DEVICE_FLAG_RDWR);
 
-    rt_memset(pm->modes, 0, sizeof(pm->modes));
-    rt_list_init(&pm->module_list);
-    pm->sleep_mode = RT_PM_DEFAULT_SLEEP_MODE;
-
     /* when system power on, set default sleep modes */
-    pm->modes[pm->sleep_mode] = 1;
+    rt_memset(pm->modes, 0, sizeof(pm->modes));
+    pm->sleep_mode = RT_PM_DEFAULT_SLEEP_MODE;
     pm->run_mode = RT_PM_DEFAULT_RUN_MODE;
     pm->timer_mask = timer_mask;
 
@@ -853,68 +751,5 @@ void rt_system_pm_init(const struct rt_pm_ops *ops,
 
     _pm_init_flag = 1;
 }
-
-#ifdef RT_USING_FINSH
-#ifdef PM_ENABLE_DEBUG
-#include <finsh.h>
-/**
- * print current module sleep request list
- *
- * @param none
- *
- * @return none
- */
-void pm_sleep_dump(uint8_t argc, char **argv)
-{
-    rt_list_t *pos;
-    struct rt_pm *pm;
-    uint8_t index;
-
-    if (_pm_init_flag == 0)
-    {
-        rt_kprintf("pm no init\n");
-        return;
-    }
-
-    if (argc == 2)
-    {
-        if (strcmp(argv[1], "clean") == 0)
-        {
-            memset(SleepModeTimeSpent, 0, sizeof(SleepModeTimeSpent));
-            return;
-        }
-    }
-
-    pm = &_pm;
-    const char *mode_name[] = PM_SLEEP_MODE_NAMES;
-
-    rt_kprintf("request:\n");
-    rt_kprintf("\tcurrent sleep mode : %s\n", mode_name[pm->sleep_mode]);
-    rt_kprintf("\tmax sleep tick = %08X\n", SleepModeTimeSpent[PM_SLEEP_MODE_MAX - 1]);
-    for (index = 0; index < PM_SLEEP_MODE_MAX - 1; index++)
-    {
-        rt_kprintf("\t%-.18s request : %03d; tick = %08X\n", mode_name[index], pm->modes[index], SleepModeTimeSpent[index]);
-    }
-
-    rt_kprintf("moudle:\n");
-    if (!rt_list_isempty(&pm->module_list))
-    {
-        rt_list_for_each(pos, &pm->module_list)
-        {
-            struct rt_pm_module *temp = rt_list_entry(pos, struct rt_pm_module, list);
-            rt_kprintf("\tmoudle [%s] : %s\n", temp->name, mode_name[temp->sleep_mode]);
-        }
-    }
-
-    rt_kprintf("device:\n");
-    for (index = 0; index < pm->device_pm_number; index++)
-    {
-        rt_kprintf("\t%-.8s\n", pm->device_pm[index].device->parent.name);
-    }
-}
-MSH_CMD_EXPORT(pm_sleep_dump, dump pm request list);
-
-#endif
-#endif
 
 #endif /* RT_USING_PM */

@@ -29,10 +29,6 @@ config BOARD_QEMU_VIRT_RV64
     select ARCH_MM_MMU
     default y
 
-config RT_USING_USERSPACE
-    bool
-    default y
-
 config ENABLE_FPU
     bool "Enable FPU"
     default y
@@ -45,7 +41,7 @@ if ENABLE_VECTOR
     choice
     prompt "Vector Registers Length in Bits"
     default ARCH_VECTOR_VLEN_128
-    
+
     config ARCH_VECTOR_VLEN_128
         bool "128"
 

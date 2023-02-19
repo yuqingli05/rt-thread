@@ -45,7 +45,7 @@ static rt_uint8_t _soft_timer_status = RT_SOFT_TIMER_IDLE;
 /* soft timer list */
 static rt_list_t _soft_timer_list[RT_TIMER_SKIP_LIST_LEVEL];
 static struct rt_thread _timer_thread;
-ALIGN(RT_ALIGN_SIZE)
+rt_align(RT_ALIGN_SIZE)
 static rt_uint8_t _timer_thread_stack[RT_TIMER_THREAD_STACK_SIZE];
 #endif /* RT_USING_TIMER_SOFT */
 
@@ -614,7 +614,7 @@ rt_err_t rt_timer_control(rt_timer_t timer, int cmd, void *arg)
         *(rt_tick_t *)arg =  timer->timeout_tick;
         break;
     case RT_TIMER_CTRL_GET_FUNC:
-        *(void **)arg = timer->timeout_func;
+        arg = (void *)timer->timeout_func;
         break;
 
     case RT_TIMER_CTRL_SET_FUNC:

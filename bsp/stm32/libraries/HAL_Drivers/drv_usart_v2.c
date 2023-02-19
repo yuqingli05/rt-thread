@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2021, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -302,9 +302,9 @@ static int stm32_putc(struct rt_serial_device *serial, char c)
     RT_ASSERT(serial != RT_NULL);
 
     uart = rt_container_of(serial, struct stm32_uart, serial);
-    while (__HAL_UART_GET_FLAG(&(uart->handle), UART_FLAG_TC) == RESET);
     UART_INSTANCE_CLEAR_FUNCTION(&(uart->handle), UART_FLAG_TC);
     UART_SET_TDR(&uart->handle, c);
+    while (__HAL_UART_GET_FLAG(&(uart->handle), UART_FLAG_TC) == RESET);
 
     return 1;
 }
@@ -369,7 +369,7 @@ static int stm32_getc(struct rt_serial_device *serial)
     return ch;
 }
 
-static rt_size_t stm32_transmit(struct rt_serial_device     *serial,
+static rt_ssize_t stm32_transmit(struct rt_serial_device     *serial,
                                        rt_uint8_t           *buf,
                                        rt_size_t             size,
                                        rt_uint32_t           tx_flag)

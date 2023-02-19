@@ -167,7 +167,7 @@ static rt_err_t _thread_init(struct rt_thread *thread,
     /* init thread list */
     rt_list_init(&(thread->tlist));
 
-#ifdef RT_USING_LWP
+#ifdef RT_USING_SMART
     thread->wakeup.func = RT_NULL;
 #endif
 
@@ -255,7 +255,7 @@ static rt_err_t _thread_init(struct rt_thread *thread,
     thread->si_list     = RT_NULL;
 #endif /* RT_USING_SIGNALS */
 
-#ifdef RT_USING_LWP
+#ifdef RT_USING_SMART
     thread->lwp = RT_NULL;
     rt_list_init(&(thread->sibling));
     rt_memset(&thread->signal, 0, sizeof(lwp_sigset_t));
@@ -642,7 +642,7 @@ rt_err_t rt_thread_sleep(rt_tick_t tick)
         rt_hw_interrupt_enable(level);
 
         thread->error = -RT_EINTR;
-        
+
         rt_schedule();
 
         /* clear error number of this thread to RT_EOK */
@@ -930,7 +930,7 @@ rt_err_t rt_thread_control(rt_thread_t thread, int cmd, void *arg)
 }
 RTM_EXPORT(rt_thread_control);
 
-#ifdef RT_USING_LWP
+#ifdef RT_USING_SMART
 int lwp_suspend_sigcheck(rt_thread_t thread, int suspend_flag);
 #endif
 
@@ -967,7 +967,8 @@ static void rt_thread_set_suspend_state(struct rt_thread *thread, int suspend_fl
  *          thread is executing when you suspend it. If you suspend a thread while sharing a resouce with
  *          other threads and occupying this resouce, starvation can occur very easily.
  *
- * @param   thread is the thread to be suspended.
+ * @param   thread the thread to be suspended.
+ * @param   suspend_flag status flag of the thread to be suspended.
  *
  * @return  Return the operation status. If the return value is RT_EOK, the function is successfully executed.
  *          If the return value is any other values, it means this operation failed.
@@ -998,7 +999,7 @@ rt_err_t rt_thread_suspend_with_flag(rt_thread_t thread, int suspend_flag)
         /* not suspend running status thread on other core */
         RT_ASSERT(thread == rt_thread_self());
     }
-#ifdef RT_USING_LWP
+#ifdef RT_USING_SMART
     if (lwp_suspend_sigcheck(thread, suspend_flag) == 0)
     {
         /* not to suspend */
@@ -1063,7 +1064,7 @@ rt_err_t rt_thread_resume(rt_thread_t thread)
 
     rt_timer_stop(&thread->thread_timer);
 
-#ifdef RT_USING_LWP
+#ifdef RT_USING_SMART
     thread->wakeup.func = RT_NULL;
 #endif
 
@@ -1078,7 +1079,7 @@ rt_err_t rt_thread_resume(rt_thread_t thread)
 }
 RTM_EXPORT(rt_thread_resume);
 
-#ifdef RT_USING_LWP
+#ifdef RT_USING_SMART
 /**
  * This function will wakeup a thread with customized operation.
  *

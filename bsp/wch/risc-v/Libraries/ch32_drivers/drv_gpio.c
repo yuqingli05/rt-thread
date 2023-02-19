@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -431,12 +431,21 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     pin_irq_hdr(bit2bitno(GPIO_Pin));
 }
 
+#if defined (SOC_RISCV_SERIES_CH32V2)
+void EXTI0_IRQHandler(void) __attribute__((interrupt()));
+void EXTI1_IRQHandler(void) __attribute__((interrupt()));
+void EXTI2_IRQHandler(void) __attribute__((interrupt()));
+void EXTI3_IRQHandler(void) __attribute__((interrupt()));
+void EXTI4_IRQHandler(void) __attribute__((interrupt()));
+void EXTI9_5_IRQHandler(void) __attribute__((interrupt()));
+#else
 void EXTI0_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void EXTI1_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void EXTI2_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void EXTI3_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void EXTI4_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void EXTI9_5_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+#endif
 
 void EXTI0_IRQHandler(void)
 {

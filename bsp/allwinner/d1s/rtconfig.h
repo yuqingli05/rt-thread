@@ -37,6 +37,7 @@
 
 /* Memory Management */
 
+#define RT_PAGE_MAX_ORDER 11
 #define RT_USING_MEMPOOL
 #define RT_USING_SMALL_MEM
 #define RT_USING_SMALL_MEM_AS_HEAP
@@ -53,9 +54,7 @@
 #define ARCH_CPU_64BIT
 #define RT_USING_CACHE
 #define ARCH_MM_MMU
-#define RT_USING_USERSPACE
-#define KERNEL_VADDR_START 0x150000000
-#define PV_OFFSET 0
+#define KERNEL_VADDR_START 0x40000000
 #define ARCH_RISCV
 #define ARCH_RISCV64
 
@@ -242,19 +241,37 @@
 /* Arduino libraries */
 
 
-/* Sensor libraries */
+/* Projects */
 
 
-/* Display libraries */
+/* Sensors */
 
 
-/* Timing libraries */
+/* Display */
 
 
-/* Project libraries */
+/* Timing */
+
+
+/* Data Processing */
+
+
+/* Data Storage */
+
+/* Communication */
+
+
+/* Device Control */
+
+
+/* Other */
+
+/* Signal IO */
+
+
+/* Uncategorized */
 
 #define BOARD_allwinnerd1s
-#define ENABLE_FPU
 #define __STACKSIZE__ 16384
 
 /* General Drivers Configuration */

@@ -48,6 +48,7 @@
 #ifndef _MACHINE_SBI_H_
 #define _MACHINE_SBI_H_
 
+#include <stdint.h>
 #include <rtdef.h>
 
 /* SBI Specification Version */
@@ -184,7 +185,9 @@ void sbi_send_ipi(const unsigned long *hart_mask);
 
 /* RFENCE extension functions. */
 void sbi_remote_fence_i(const unsigned long *hart_mask);
-void sbi_remote_sfence_vma(const unsigned long *hart_mask, unsigned long start, unsigned long size);
+int sbi_remote_sfence_vma(const unsigned long *hart_mask,
+                          const unsigned long hart_mask_base,
+                          unsigned long start, unsigned long size);
 void sbi_remote_sfence_vma_asid(const unsigned long *hart_mask, unsigned long start,
                                 unsigned long size, unsigned long asid);
 

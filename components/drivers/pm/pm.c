@@ -267,6 +267,7 @@ RT_WEAK rt_tick_t pm_timer_next_timeout_tick(rt_uint8_t mode)
 {
     switch (mode)
     {
+    case PM_SLEEP_MODE_IDLE:
     case PM_SLEEP_MODE_LIGHT:
         return rt_timer_next_timeout_tick();
     case PM_SLEEP_MODE_DEEP:

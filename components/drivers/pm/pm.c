@@ -597,6 +597,7 @@ void rt_pm_id_init(struct rt_pm_id *id, char *name)
 #endif
 
     id->sleep_mode = RT_PM_DEFAULT_SLEEP_MODE;
+    rt_pm_request(id->sleep_mode);
 
     rt_hw_interrupt_enable(level);
 }

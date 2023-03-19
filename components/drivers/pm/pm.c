@@ -258,9 +258,10 @@ rt_inline void _pm_update_sleep_mode(struct rt_pm *pm)
         if (pm->modes[index])
         {
             pm->sleep_mode = index;
-            break;
+            return;
         }
     }
+    pm->sleep_mode = RT_PM_DEFAULT_SLEEP_MODE;
 }
 
 RT_WEAK rt_tick_t pm_timer_next_timeout_tick(rt_uint8_t mode)

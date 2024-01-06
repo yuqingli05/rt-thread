@@ -114,6 +114,13 @@ static rt_err_t _workqueue_submit_work(struct rt_workqueue *queue,
             err = -RT_EBUSY;
         }
 
+        if (work->flags & RT_WORK_STATE_SUBMITTING)
+        {
+            rt_timer_stop(&(work->timer));
+            rt_timer_detach(&(work->timer));
+            work->flags &= ~RT_WORK_STATE_SUBMITTING;
+        }
+
         /* whether the workqueue is doing work */
         if (queue->work_current == RT_NULL &&
                 ((queue->work_thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND))

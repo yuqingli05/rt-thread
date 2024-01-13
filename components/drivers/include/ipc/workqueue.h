@@ -39,6 +39,7 @@ struct rt_workqueue
     struct rt_work *work_current; /* current work */
 
     struct rt_semaphore sem;
+    struct rt_completion wakeup_completion;
     rt_thread_t    work_thread;
 };
 
@@ -50,7 +51,7 @@ struct rt_work
     void *work_data;
     rt_uint16_t flags;
     rt_uint16_t type;
-    struct rt_timer timer;
+    rt_tick_t timeout_tick;
     struct rt_workqueue *workqueue;
 };
 

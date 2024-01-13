@@ -17,8 +17,6 @@
 
 #ifdef RT_USING_HEAP
 
-static void _delayed_work_timeout_handler(void *parameter);
-
 rt_inline rt_err_t _workqueue_work_completion(struct rt_workqueue *queue)
 {
     rt_err_t result;
@@ -55,6 +53,8 @@ static void _workqueue_thread_entry(void *parameter)
     rt_base_t level;
     struct rt_work *work;
     struct rt_workqueue *queue;
+    rt_tick_t current_tick;
+    rt_tick_t delay_tick;
 
     queue = (struct rt_workqueue *)parameter;
     RT_ASSERT(queue != RT_NULL);
@@ -62,12 +62,32 @@ static void _workqueue_thread_entry(void *parameter)
     while (1)
     {
         level = rt_hw_interrupt_disable();
+
+        /* timer check */
+        current_tick = rt_tick_get();
+        delay_tick = RT_WAITING_FOREVER;
+        while (!rt_list_isempty(&(queue->delayed_list)))
+        {
+            work = rt_list_entry(queue->delayed_list.next, struct rt_work, list);
+            if ((current_tick - work->timeout_tick) < RT_TICK_MAX / 2)
+            {
+                rt_list_remove(&(work->list));
+                rt_list_insert_after(queue->work_list.prev, &(work->list));
+                work->flags &= ~RT_WORK_STATE_SUBMITTING;
+                work->flags |= RT_WORK_STATE_PENDING;
+            }
+            else
+            {
+                delay_tick = work->timeout_tick - current_tick;
+                break;
+            }
+        }
+
         if (rt_list_isempty(&(queue->work_list)))
         {
-            /* no software timer exist, suspend self. */
-            rt_thread_suspend(rt_thread_self());
             rt_hw_interrupt_enable(level);
-            rt_schedule();
+            /* wait for work completion */
+            rt_completion_wait(&(queue->wakeup_completion), delay_tick);
             continue;
         }
 
@@ -94,60 +114,54 @@ static rt_err_t _workqueue_submit_work(struct rt_workqueue *queue,
 {
     rt_base_t level;
     rt_err_t err;
+    struct rt_work *work_tmp;
+    rt_list_t *list_tmp;
 
     level = rt_hw_interrupt_disable();
     /* remove list */
     rt_list_remove(&(work->list));
-    work->flags &= ~RT_WORK_STATE_PENDING;
+    work->flags = 0;
 
     if (ticks == 0)
     {
-        err = RT_EOK;
         rt_list_insert_after(queue->work_list.prev, &(work->list));
         work->flags |= RT_WORK_STATE_PENDING;
         work->workqueue = queue;
-
-        if (work->flags & RT_WORK_STATE_SUBMITTING)
-        {
-            rt_timer_stop(&(work->timer));
-            rt_timer_detach(&(work->timer));
-            work->flags &= ~RT_WORK_STATE_SUBMITTING;
-        }
 
         /* whether the workqueue is doing work */
         if (queue->work_current == RT_NULL &&
             ((queue->work_thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND))
         {
-            /* resume work thread */
-            rt_thread_resume(queue->work_thread);
-            rt_hw_interrupt_enable(level);
-            rt_schedule();
+            rt_completion_done(&(queue->wakeup_completion));
         }
-        else
-        {
-            rt_hw_interrupt_enable(level);
-        }
-        return err;
+        rt_hw_interrupt_enable(level);
+        return RT_EOK;
     }
     else if (ticks < RT_TICK_MAX / 2)
     {
-        /* Timer started */
-        if (work->flags & RT_WORK_STATE_SUBMITTING)
-        {
-            rt_timer_stop(&work->timer);
-            rt_timer_control(&work->timer, RT_TIMER_CTRL_SET_TIME, &ticks);
-        }
-        else
-        {
-            rt_timer_init(&(work->timer), "work", _delayed_work_timeout_handler,
-                          work, ticks, RT_TIMER_FLAG_ONE_SHOT | RT_TIMER_FLAG_SOFT_TIMER);
-            work->flags |= RT_WORK_STATE_SUBMITTING;
-        }
-        work->workqueue = queue;
         /* insert delay work list */
-        rt_list_insert_after(queue->delayed_list.prev, &(work->list));
+        work->flags |= RT_WORK_STATE_SUBMITTING;
+        work->workqueue = queue;
+        work->timeout_tick = rt_tick_get() + ticks;
+
+        list_tmp = &(queue->delayed_list);
+        rt_list_for_each_entry(work_tmp, &(queue->delayed_list), list)
+        {
+            if (work->timeout_tick > work_tmp->timeout_tick)
+            {
+                list_tmp = &(work_tmp->list);
+                break;
+            }
+        }
+        rt_list_insert_before(list_tmp, &(work->list));
+
+        /* whether the workqueue is doing work */
+        if (queue->work_current == RT_NULL &&
+            ((queue->work_thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND))
+        {
+            rt_completion_done(&(queue->wakeup_completion));
+        }
         rt_hw_interrupt_enable(level);
-        rt_timer_start(&(work->timer));
         return RT_EOK;
     }
     rt_hw_interrupt_enable(level);
@@ -161,62 +175,11 @@ static rt_err_t _workqueue_cancel_work(struct rt_workqueue *queue, struct rt_wor
 
     level = rt_hw_interrupt_disable();
     rt_list_remove(&(work->list));
-    work->flags &= ~RT_WORK_STATE_PENDING;
-    /* Timer started */
-    if (work->flags & RT_WORK_STATE_SUBMITTING)
-    {
-        rt_timer_stop(&(work->timer));
-        rt_timer_detach(&(work->timer));
-        work->flags &= ~RT_WORK_STATE_SUBMITTING;
-    }
+    work->flags = 0;
     err = queue->work_current != work ? RT_EOK : -RT_EBUSY;
     work->workqueue = RT_NULL;
     rt_hw_interrupt_enable(level);
     return err;
-}
-
-static void _delayed_work_timeout_handler(void *parameter)
-{
-    struct rt_work *work;
-    struct rt_workqueue *queue;
-    rt_base_t level;
-
-    work = (struct rt_work *)parameter;
-
-    level = rt_hw_interrupt_disable();
-    if (!(work->flags & RT_WORK_STATE_SUBMITTING))
-    {
-        /* Other threads have cancelled the task */
-        rt_hw_interrupt_enable(level);
-        return;
-    }
-
-    queue = work->workqueue;
-    RT_ASSERT(queue != RT_NULL);
-
-    rt_timer_detach(&(work->timer));
-    work->flags &= ~RT_WORK_STATE_SUBMITTING;
-    /* remove delay list */
-    rt_list_remove(&(work->list));
-    /* insert work queue */
-    if (queue->work_current != work)
-    {
-        rt_list_insert_after(queue->work_list.prev, &(work->list));
-        work->flags |= RT_WORK_STATE_PENDING;
-    }
-    /* whether the workqueue is doing work */
-    if (queue->work_current == RT_NULL &&
-        ((queue->work_thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND))
-    {
-        /* resume work thread */
-        rt_thread_resume(queue->work_thread);
-        rt_hw_interrupt_enable(level);
-        rt_schedule();
-    }
-    else
-    {
-        rt_hw_interrupt_enable(level);
-    }
 }
 
 /**
@@ -266,6 +229,7 @@ struct rt_workqueue *rt_workqueue_create(const char *name, rt_uint16_t stack_siz
         rt_list_init(&(queue->delayed_list));
         queue->work_current = RT_NULL;
         rt_sem_init(&(queue->sem), "wqueue", 0, RT_IPC_FLAG_FIFO);
+        rt_completion_init(&(queue->wakeup_completion));
 
         /* create the work thread */
         queue->work_thread = rt_thread_create(name, _workqueue_thread_entry, queue, stack_size, priority, 10);
@@ -366,15 +330,9 @@ rt_err_t rt_workqueue_urgent_work(struct rt_workqueue *queue, struct rt_work *wo
     if (queue->work_current == RT_NULL &&
         ((queue->work_thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND))
     {
-        /* resume work thread */
-        rt_thread_resume(queue->work_thread);
-        rt_hw_interrupt_enable(level);
-        rt_schedule();
+        rt_completion_done(&(queue->wakeup_completion));
     }
-    else
-    {
-        rt_hw_interrupt_enable(level);
-    }
+    rt_hw_interrupt_enable(level);
 
     return RT_EOK;
 }

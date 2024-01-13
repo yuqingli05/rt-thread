@@ -132,12 +132,7 @@ static rt_err_t _workqueue_submit_work(struct rt_workqueue *queue,
         work->flags |= RT_WORK_STATE_PENDING;
         work->workqueue = queue;
 
-        /* whether the workqueue is doing work */
-        if (queue->work_current == RT_NULL &&
-            ((queue->work_thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND))
-        {
-            rt_completion_done(&(queue->wakeup_completion));
-        }
+        rt_completion_done(&(queue->wakeup_completion));
         rt_hw_interrupt_enable(level);
         return RT_EOK;
     }
@@ -163,12 +158,7 @@ static rt_err_t _workqueue_submit_work(struct rt_workqueue *queue,
         }
         rt_list_insert_before(list_tmp, &(work->list));
 
-        /* whether the workqueue is doing work */
-        if (queue->work_current == RT_NULL &&
-            ((queue->work_thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND))
-        {
-            rt_completion_done(&(queue->wakeup_completion));
-        }
+        rt_completion_done(&(queue->wakeup_completion));
         rt_hw_interrupt_enable(level);
         return RT_EOK;
     }
@@ -334,12 +324,8 @@ rt_err_t rt_workqueue_urgent_work(struct rt_workqueue *queue, struct rt_work *wo
     /* NOTE: the work MUST be initialized firstly */
     rt_list_remove(&(work->list));
     rt_list_insert_after(&queue->work_list, &(work->list));
-    /* whether the workqueue is doing work */
-    if (queue->work_current == RT_NULL &&
-        ((queue->work_thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND))
-    {
-        rt_completion_done(&(queue->wakeup_completion));
-    }
+
+    rt_completion_done(&(queue->wakeup_completion));
     rt_hw_interrupt_enable(level);
 
     return RT_EOK;

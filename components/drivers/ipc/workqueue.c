@@ -182,10 +182,18 @@ static void _delayed_work_timeout_handler(void *parameter)
     rt_base_t level;
 
     work = (struct rt_work *)parameter;
+
+    level = rt_hw_interrupt_disable();
+    if (!(work->flags & RT_WORK_STATE_SUBMITTING))
+    {
+        /* Other threads have cancelled the task */
+        rt_hw_interrupt_enable(level);
+        return;
+    }
+
     queue = work->workqueue;
     RT_ASSERT(queue != RT_NULL);
 
-    level = rt_hw_interrupt_disable();
     rt_timer_detach(&(work->timer));
     work->flags &= ~RT_WORK_STATE_SUBMITTING;
     /* remove delay list */

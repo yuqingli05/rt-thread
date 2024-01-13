@@ -718,6 +718,8 @@ void rt_soft_timer_check(void)
     struct rt_timer *t;
     rt_base_t level;
     rt_list_t list;
+    void (*temp_func)(void *parameter);
+    void *temp_parameter;
 
     rt_list_init(&list);
 
@@ -751,11 +753,15 @@ void rt_soft_timer_check(void)
             rt_list_insert_after(&list, &(t->row[RT_TIMER_SKIP_LIST_LEVEL - 1]));
 
             _soft_timer_status = RT_SOFT_TIMER_BUSY;
+
+            temp_func = t->timeout_func;
+            temp_parameter = t->parameter;
+
             /* enable interrupt */
             rt_hw_interrupt_enable(level);
 
             /* call timeout function */
-            t->timeout_func(t->parameter);
+            temp_func(temp_parameter);
 
             RT_OBJECT_HOOK_CALL(rt_timer_exit_hook, (t));
             RT_DEBUG_LOG(RT_DEBUG_TIMER, ("current tick: %d\n", current_tick));

@@ -54,7 +54,9 @@ static void _workqueue_thread_entry(void *parameter)
     struct rt_work *work;
     struct rt_workqueue *queue;
     rt_tick_t current_tick;
-    rt_tick_t delay_tick;
+    rt_int32_t delay_tick;
+    void (*work_func)(struct rt_work *work, void *work_data);
+    void *work_data;
 
     queue = (struct rt_workqueue *)parameter;
     RT_ASSERT(queue != RT_NULL);
@@ -97,10 +99,12 @@ static void _workqueue_thread_entry(void *parameter)
         queue->work_current = work;
         work->flags &= ~RT_WORK_STATE_PENDING;
         work->workqueue = RT_NULL;
+        work_func = work->work_func;
+        work_data = work->work_data;
         rt_hw_interrupt_enable(level);
 
         /* do work */
-        work->work_func(work, work->work_data);
+        work_func(work, work_data);
         /* clean current work */
         queue->work_current = RT_NULL;
 

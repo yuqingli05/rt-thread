@@ -330,12 +330,12 @@ RT_WEAK rt_uint8_t pm_get_sleep_threshold_mode(rt_uint8_t cur_mode, rt_tick_t ti
 rt_inline void _pm_change_sleep_mode(struct rt_pm *pm)
 {
     rt_tick_t timeout_tick = 0, delta_tick = 0;
-    register rt_base_t level;
+    rt_base_t level_pm;
     uint8_t sleep_mode = pm->sleep_mode;
 
     if (sleep_mode > PM_SLEEP_MODE_NONE)
     {
-        level = rt_pm_enter_critical(sleep_mode);
+        level_pm = rt_pm_enter_critical(sleep_mode);
 
         /* Tickless*/
         if (pm->timer_mask & (0x01 << sleep_mode))
@@ -375,7 +375,10 @@ rt_inline void _pm_change_sleep_mode(struct rt_pm *pm)
             pm_lptimer_stop(pm);
             if (delta_tick)
             {
+                rt_base_t level;
+                level = rt_hw_interrupt_disable();
                 rt_tick_set(rt_tick_get() + delta_tick);
+                rt_hw_interrupt_enable(level);
             }
         }
 
@@ -389,7 +392,7 @@ rt_inline void _pm_change_sleep_mode(struct rt_pm *pm)
             _pm_notify.notify(RT_PM_EXIT_SLEEP, sleep_mode, _pm_notify.data);
 #endif
 
-        rt_pm_exit_critical(level, sleep_mode);
+        rt_pm_exit_critical(level_pm, sleep_mode);
 
         if (pm->timer_mask & (0x01 << sleep_mode))
         {

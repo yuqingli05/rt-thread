@@ -16,6 +16,8 @@
 #define ROMFS_DIRENT_FILE   0x00
 #define ROMFS_DIRENT_DIR    0x01
 
+#define ROMFS_CMD_GETADDR  0x00237601
+
 struct romfs_dirent
 {
     rt_uint32_t      type;  /* dirent type */

@@ -34,6 +34,20 @@ int dfs_romfs_unmount(struct dfs_filesystem *fs)
 
 int dfs_romfs_ioctl(struct dfs_fd *file, int cmd, void *args)
 {
+    if (file == NULL)
+        return -EINVAL;
+
+    switch (cmd)
+    {
+    case ROMFS_CMD_GETADDR:
+    {
+        struct romfs_dirent *dirent;
+        dirent = (struct romfs_dirent *)file->data;
+        *((uintptr_t *)args) = (uintptr_t)dirent->data;
+        return 0;
+    }
+    }
+
     return -EIO;
 }
 

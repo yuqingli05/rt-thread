@@ -39,7 +39,7 @@ int dfs_romfs_ioctl(struct dfs_fd *file, int cmd, void *args)
 
     switch (cmd)
     {
-    case ROMFS_CMD_GETADDR:
+    case RT_FIOGETADDR:
     {
         struct romfs_dirent *dirent;
         dirent = (struct romfs_dirent *)file->data;

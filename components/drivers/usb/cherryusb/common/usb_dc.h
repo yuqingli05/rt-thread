@@ -195,7 +195,7 @@ void usbd_execute_test_mode(uint8_t busid, uint8_t test_mode);
 #endif
 
 /* called by user */
-void USBD_IRQHandler(uint8_t busid);
+void CHERRY_USBD_IRQHandler(uint8_t busid);
 
 #ifdef __cplusplus
 }

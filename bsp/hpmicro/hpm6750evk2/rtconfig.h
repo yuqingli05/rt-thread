@@ -3,7 +3,65 @@
 
 /* RT-Thread Kernel */
 
-#define RT_NAME_MAX 8
+/* klibc options */
+
+/* rt_vsnprintf options */
+
+/* end of rt_vsnprintf options */
+
+/* rt_vsscanf options */
+
+/* end of rt_vsscanf options */
+
+/* rt_memset options */
+
+/* end of rt_memset options */
+
+/* rt_memcpy options */
+
+/* end of rt_memcpy options */
+
+/* rt_memmove options */
+
+/* end of rt_memmove options */
+
+/* rt_memcmp options */
+
+/* end of rt_memcmp options */
+
+/* rt_strstr options */
+
+/* end of rt_strstr options */
+
+/* rt_strcasecmp options */
+
+/* end of rt_strcasecmp options */
+
+/* rt_strncpy options */
+
+/* end of rt_strncpy options */
+
+/* rt_strcpy options */
+
+/* end of rt_strcpy options */
+
+/* rt_strncmp options */
+
+/* end of rt_strncmp options */
+
+/* rt_strcmp options */
+
+/* end of rt_strcmp options */
+
+/* rt_strlen options */
+
+/* end of rt_strlen options */
+
+/* rt_strnlen options */
+
+/* end of rt_strnlen options */
+/* end of klibc options */
+#define RT_NAME_MAX 16
 #define RT_CPUS_NR 1
 #define RT_ALIGN_SIZE 8
 #define RT_THREAD_PRIORITY_32
@@ -17,14 +75,11 @@
 #define RT_USING_TIMER_SOFT
 #define RT_TIMER_THREAD_PRIO 4
 #define RT_TIMER_THREAD_STACK_SIZE 2048
+#define RT_USING_CPU_USAGE_TRACER
 
-/* kservice optimization */
+/* kservice options */
 
-/* end of kservice optimization */
-
-/* klibc optimization */
-
-/* end of klibc optimization */
+/* end of kservice options */
 
 /* Inter-Thread communication */
 
@@ -46,9 +101,11 @@
 #define RT_USING_CONSOLE
 #define RT_CONSOLEBUF_SIZE 128
 #define RT_CONSOLE_DEVICE_NAME "uart0"
-#define RT_VER_NUM 0x50200
+#define RT_VER_NUM 0x50201
 #define RT_BACKTRACE_LEVEL_MAX_NR 32
 /* end of RT-Thread Kernel */
+#define ARCH_RISCV
+#define ARCH_RISCV32
 
 /* RT-Thread Components */
 
@@ -92,9 +149,8 @@
 #define RT_SYSTEM_WORKQUEUE_STACKSIZE 2048
 #define RT_SYSTEM_WORKQUEUE_PRIORITY 23
 #define RT_USING_SERIAL
-#define RT_USING_SERIAL_V1
-#define RT_SERIAL_RB_BUFSZ 64
-#define RT_USING_RTC
+#define RT_USING_SERIAL_V2
+#define RT_SERIAL_BUF_STRATEGY_OVERWRITE
 #define RT_USING_PIN
 /* end of Device Drivers */
 
@@ -243,6 +299,36 @@
 /* Kendryte SDK */
 
 /* end of Kendryte SDK */
+
+/* WCH HAL & SDK Drivers */
+
+/* end of WCH HAL & SDK Drivers */
+
+/* AT32 HAL & SDK Drivers */
+
+/* end of AT32 HAL & SDK Drivers */
+
+/* HC32 DDL Drivers */
+
+/* end of HC32 DDL Drivers */
+
+/* NXP HAL & SDK Drivers */
+
+/* end of NXP HAL & SDK Drivers */
+
+/* NUVOTON Drivers */
+
+/* end of NUVOTON Drivers */
+
+/* GD32 Drivers */
+
+/* end of GD32 Drivers */
+
+/* HPMicro SDK */
+
+#define PKG_USING_HPM_SDK
+#define PKG_USING_HPM_SDK_V110
+/* end of HPMicro SDK */
 /* end of HAL & SDK Drivers */
 
 /* sensors drivers */
@@ -322,17 +408,23 @@
 
 /* end of Arduino libraries */
 /* end of RT-Thread online packages */
+#define SOC_HPM6700_SERIES
 
 /* Hardware Drivers Config */
 
-#define SOC_HPM6000
+#define SOC_HPM6700
 
 /* On-chip Peripheral Drivers */
 
 #define BSP_USING_GPIO
+#define BSP_GPIO_IRQ_PRIORITY 1
 #define BSP_USING_UART
 #define BSP_USING_UART0
-#define BSP_USING_RTC
+#define BSP_UART0_RX_BUFSIZE 128
+#define BSP_UART0_TX_BUFSIZE 0
+#define BSP_UART0_IRQ_PRIORITY 1
+#define BSP_USING_FEMC
+#define INIT_EXT_RAM_FOR_DATA
 /* end of On-chip Peripheral Drivers */
 /* end of Hardware Drivers Config */
 

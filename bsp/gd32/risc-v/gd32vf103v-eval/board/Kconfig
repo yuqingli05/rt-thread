@@ -137,7 +137,7 @@ menu "On-chip Peripheral Drivers"
     menuconfig BSP_USING_TIM
         bool "Enable timer"
         default n
-        select RT_USING_HWTIMER
+        select RT_USING_CLOCK_TIME
         if BSP_USING_TIM
             config BSP_USING_TIM10
                 bool "Enable TIM10"
@@ -174,7 +174,7 @@ menu "On-chip Peripheral Drivers"
         select RT_USING_WDT
         default n
 
-    rsource "../../libraries/gd32_drivers/Kconfig"
+    source "$(BSP_DIR)/../libraries/gd32_drivers/Kconfig"
 
 endmenu
 

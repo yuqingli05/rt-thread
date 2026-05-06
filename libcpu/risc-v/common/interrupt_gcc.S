@@ -102,11 +102,17 @@ SW_handler:
     /* interrupt handle */
     call  rt_interrupt_enter
     /* Do the work after saving the above */
-    jal   rt_hw_do_after_save_above
+    call  rt_hw_do_after_save_above
 
     call  rt_interrupt_leave
     /* switch to from thread stack */
     csrrw sp,mscratch,sp
+
+    /* Check if we are in interrupt nesting, if so, skip task switching */
+    la    t0, rt_interrupt_nest
+    lw    t1, 0(t0)
+    li    t2, 1
+    bge   t1, t2, 1f
 
     /* Determine whether to trigger scheduling at the interrupt function */
     la    t0, rt_thread_switch_interrupt_flag
@@ -337,8 +343,8 @@ trap_entry:
 
     /* need to switch new thread */
     la    s0, rt_thread_switch_interrupt_flag
-    lw    s2, 0(s0)
-    beqz  s2, spurious_interrupt
+    lw    s1, 0(s0)
+    beqz  s1, spurious_interrupt
     sw    zero, 0(s0)
 
     la    s0, rt_interrupt_from_thread

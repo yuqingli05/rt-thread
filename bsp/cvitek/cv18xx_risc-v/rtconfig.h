@@ -72,7 +72,7 @@
 
 /* end of rt_strnlen options */
 /* end of klibc options */
-#define RT_NAME_MAX 8
+#define RT_NAME_MAX 16
 #define RT_USING_SMART
 #define RT_CPUS_NR 1
 #define RT_ALIGN_SIZE 8
@@ -109,7 +109,6 @@
 
 /* Memory Management */
 
-#define RT_PAGE_MAX_ORDER 11
 #define RT_USING_SLAB
 #define RT_USING_SLAB_AS_HEAP
 #define RT_USING_HEAP
@@ -119,14 +118,14 @@
 #define RT_USING_CONSOLE
 #define RT_CONSOLEBUF_SIZE 256
 #define RT_CONSOLE_DEVICE_NAME "uart0"
-#define RT_VER_NUM 0x50200
+#define RT_VER_NUM 0x50201
 #define RT_USING_STDC_ATOMIC
 #define RT_BACKTRACE_LEVEL_MAX_NR 32
 /* end of RT-Thread Kernel */
 #define ARCH_CPU_64BIT
 #define RT_USING_CACHE
 #define ARCH_MM_MMU
-#define KERNEL_VADDR_START 0xFFFFFFC000200000
+#define KERNEL_VADDR_START 0xffffffc000000000
 #define ARCH_RISCV
 #define ARCH_RISCV_FPU
 #define ARCH_RISCV_FPU_D
@@ -276,6 +275,7 @@
 
 #define RT_USING_SAL
 #define SAL_INTERNET_CHECK
+#define SOCKET_TABLE_STEP_LEN 4
 
 /* Docking with protocol stacks */
 
@@ -348,8 +348,17 @@
 #define RT_USING_ADT_HASHMAP
 #define RT_USING_ADT_REF
 /* end of Utilities */
+
+/* Memory management */
+
+#define RT_PAGE_AFFINITY_BLOCK_SIZE 0x1000
+#define RT_PAGE_MAX_ORDER 11
+
+/* Debugging */
+
+/* end of Debugging */
+/* end of Memory management */
 #define RT_USING_LWP
-#define LWP_DEBUG
 #define LWP_USING_RUNTIME
 #define RT_LWP_MAX_NR 30
 #define LWP_TASK_STACK_SIZE 16384
@@ -359,10 +368,7 @@
 #define RT_USING_LDSO
 #define LWP_USING_TERMINAL
 #define LWP_PTY_MAX_PARIS_LIMIT 64
-
-/* Memory management */
-
-/* end of Memory management */
+#define RT_USING_VDSO
 
 /* Using USB legacy version */
 
@@ -470,6 +476,30 @@
 /* Kendryte SDK */
 
 /* end of Kendryte SDK */
+
+/* WCH HAL & SDK Drivers */
+
+/* end of WCH HAL & SDK Drivers */
+
+/* AT32 HAL & SDK Drivers */
+
+/* end of AT32 HAL & SDK Drivers */
+
+/* HC32 DDL Drivers */
+
+/* end of HC32 DDL Drivers */
+
+/* NXP HAL & SDK Drivers */
+
+/* end of NXP HAL & SDK Drivers */
+
+/* NUVOTON Drivers */
+
+/* end of NUVOTON Drivers */
+
+/* GD32 Drivers */
+
+/* end of GD32 Drivers */
 /* end of HAL & SDK Drivers */
 
 /* sensors drivers */

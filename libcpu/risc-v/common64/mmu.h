@@ -56,12 +56,18 @@ struct mem_desc
 #define MMU_MAP_ERROR_NOPAGE     -3
 #define MMU_MAP_ERROR_CONFLICT   -4
 
+#define VPN_MASK    0x1ffUL
+#define PTE_BITS    10
+#define VPN_BITS    9
+
+#if defined(RT_USING_SMP) && defined(ARCH_MM_MMU)
+extern unsigned int __percpu_end, __percpu_start;
+#endif /* RT_USING_SMP && ARCH_MM_MMU */
+
 void *rt_hw_mmu_tbl_get(void);
 int rt_hw_mmu_map_init(rt_aspace_t aspace, void *v_address, rt_ubase_t size,
                        rt_ubase_t *vtable, rt_ubase_t pv_off);
 void rt_hw_mmu_setup(rt_aspace_t aspace, struct mem_desc *mdesc, int desc_nr);
-void rt_hw_mmu_kernel_map_init(rt_aspace_t aspace, rt_ubase_t vaddr_start,
-                               rt_ubase_t size);
 void *rt_hw_mmu_map(rt_aspace_t aspace, void *v_addr, void *p_addr, size_t size,
                     size_t attr);
 void rt_hw_mmu_unmap(rt_aspace_t aspace, void *v_addr, size_t size);
@@ -74,4 +80,5 @@ int rt_hw_mmu_control(struct rt_aspace *aspace, void *vaddr, size_t size,
 void *rt_hw_mmu_pgtbl_create(void);
 void rt_hw_mmu_pgtbl_delete(void *pgtbl);
 
+unsigned long get_free_page(void);
 #endif

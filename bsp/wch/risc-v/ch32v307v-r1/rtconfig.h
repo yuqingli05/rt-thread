@@ -61,7 +61,7 @@
 
 /* end of rt_strnlen options */
 /* end of klibc options */
-#define RT_NAME_MAX 8
+#define RT_NAME_MAX 12
 #define RT_CPUS_NR 1
 #define RT_ALIGN_SIZE 8
 #define RT_THREAD_PRIORITY_32
@@ -103,7 +103,7 @@
 #define RT_USING_CONSOLE
 #define RT_CONSOLEBUF_SIZE 128
 #define RT_CONSOLE_DEVICE_NAME "uart1"
-#define RT_VER_NUM 0x50200
+#define RT_VER_NUM 0x50201
 #define RT_BACKTRACE_LEVEL_MAX_NR 32
 /* end of RT-Thread Kernel */
 #define RT_USING_HW_ATOMIC
@@ -287,6 +287,32 @@
 /* Kendryte SDK */
 
 /* end of Kendryte SDK */
+
+/* WCH HAL & SDK Drivers */
+
+#define PKG_USING_CH32V307_SDK
+#define PKG_USING_CH32V307_SDK_V207
+/* end of WCH HAL & SDK Drivers */
+
+/* AT32 HAL & SDK Drivers */
+
+/* end of AT32 HAL & SDK Drivers */
+
+/* HC32 DDL Drivers */
+
+/* end of HC32 DDL Drivers */
+
+/* NXP HAL & SDK Drivers */
+
+/* end of NXP HAL & SDK Drivers */
+
+/* NUVOTON Drivers */
+
+/* end of NUVOTON Drivers */
+
+/* GD32 Drivers */
+
+/* end of GD32 Drivers */
 /* end of HAL & SDK Drivers */
 
 /* sensors drivers */
@@ -382,6 +408,8 @@
 #define BSP_USING_GPIO
 #define BSP_USING_UART
 #define BSP_USING_UART1
+#define BSP_UART1_RX_BUFSIZE 256
+#define BSP_UART1_TX_BUFSIZE 0
 #define LSI_VALUE 40000
 /* end of On-chip Peripheral Drivers */
 

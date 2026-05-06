@@ -58,46 +58,10 @@ static void _uart_console_reconfig(void)
     rt_device_control(rt_console_get_device(), RT_DEVICE_CTRL_CONFIG, &config);
 }
 
-/**
- * @brief  Enter sleep mode.
- * @param  [in] u8SleepType specifies the type of enter sleep's command.
- *   @arg  PWC_SLEEP_WFI            Enter sleep mode by WFI, and wake-up by interrupt handle.
- *   @arg  PWC_SLEEP_WFE_INT        Enter sleep mode by WFE, and wake-up by interrupt request(SEVONPEND=1)
- *   @arg  PWC_SLEEP_WFE_EVT        Enter sleep mode by WFE, and wake-up by event(SEVONPEND=0).
-
- * @retval None
- */
-__WEAKDEF void pwc_sleep_enter(uint8_t u8SleepType)
-{
-    DDL_ASSERT(IS_PWC_UNLOCKED());
-
-    CLR_REG16_BIT(CM_PWC->STPMCR, PWC_STPMCR_STOP);
-    CLR_REG8_BIT(CM_PWC->PWRC0, PWC_PWRC0_PWDN);
-
-    if (PWC_SLEEP_WFI == u8SleepType)
-    {
-        __WFI();
-    }
-    else
-    {
-        if (PWC_SLEEP_WFE_INT == u8SleepType)
-        {
-            SET_REG32_BIT(SCB->SCR, SCB_SCR_SEVONPEND_Msk);
-        }
-        else
-        {
-            CLR_REG32_BIT(SCB->SCR, SCB_SCR_SEVONPEND_Msk);
-        }
-        __SEV();
-        __WFE();
-        __WFE();
-    }
-}
-
 static void _sleep_enter_idle(void)
 {
     struct pm_sleep_mode_idle_config sleep_idle_cfg = PM_SLEEP_IDLE_CFG;
-    pwc_sleep_enter(sleep_idle_cfg.pwc_sleep_type);
+    PWC_SLEEP_Enter(sleep_idle_cfg.pwc_sleep_type);
 }
 
 static void _sleep_enter_deep(void)
@@ -108,7 +72,7 @@ static void _sleep_enter_deep(void)
 
     (void)PWC_STOP_Config(&sleep_deep_cfg.cfg);
 
-#if defined(HC32F4A0) || defined(HC32F460) || defined(HC32F448)
+#if defined(HC32F4A0) || defined(HC32F460) || defined(HC32F448) || defined(HC32F4A8)
     if (PWC_PWRC2_DVS == (READ_REG8(CM_PWC->PWRC2) & PWC_PWRC2_DVS))
     {
         CLR_REG8_BIT(CM_PWC->PWRC1, PWC_PWRC1_STPDAS);
@@ -164,7 +128,7 @@ static void _run_switch_high_to_low(void)
 
     st_run_mode_cfg.sys_clk_cfg(PM_RUN_MODE_LOW_SPEED);
 
-#if defined(HC32F4A0) || defined(HC32F460) || defined(HC32F448)
+#if defined(HC32F4A0) || defined(HC32F460) || defined(HC32F448) || defined(HC32F4A8)
     PWC_HighSpeedToLowSpeed();
 #endif
 }
@@ -173,7 +137,7 @@ static void _run_switch_low_to_high(void)
 {
     struct pm_run_mode_config st_run_mode_cfg = PM_RUN_MODE_CFG;
 
-#if defined(HC32F4A0) || defined(HC32F460) || defined(HC32F448)
+#if defined(HC32F4A0) || defined(HC32F460) || defined(HC32F448) || defined(HC32F4A8)
     PWC_LowSpeedToHighSpeed();
 #endif
 

@@ -157,7 +157,7 @@ void CanPhyEnable(void)
     TCA9539_ConfigPin(CAN2_STB_PORT, CAN2_STB_PIN, TCA9539_DIR_OUT);
 #endif
 }
-rt_err_t rt_hw_board_can_init(CM_MCAN_TypeDef *MCANx)
+rt_err_t rt_hw_board_mcan_init(CM_MCAN_TypeDef *MCANx)
 {
     rt_err_t result = RT_EOK;
 
@@ -330,6 +330,31 @@ rt_err_t rt_hw_board_pwm_tmr6_init(CM_TMR6_TypeDef *TMR6x)
     return result;
 }
 #endif
+#endif
+
+#if defined (BSP_USING_INPUT_CAPTURE)
+rt_err_t rt_hw_board_input_capture_init(uint32_t *tmr_instance)
+{
+    rt_err_t result = RT_EOK;
+
+    switch ((rt_uint32_t)tmr_instance)
+    {
+#if defined (BSP_USING_INPUT_CAPTURE_TMR6_1)
+    case (rt_uint32_t)CM_TMR6_1:
+        GPIO_SetFunc(INPUT_CAPTURE_TMR6_1_PORT, INPUT_CAPTURE_TMR6_1_PIN, INPUT_CAPTURE_TMR6_1_FUNC);
+        break;
+#endif
+#if defined (BSP_USING_INPUT_CAPTURE_TMR6_2)
+    case (rt_uint32_t)CM_TMR6_2:
+        GPIO_SetFunc(INPUT_CAPTURE_TMR6_2_PORT, INPUT_CAPTURE_TMR6_2_PIN, INPUT_CAPTURE_TMR6_2_FUNC);
+        break;
+#endif
+    default:
+        result = -RT_ERROR;
+        break;
+    }
+    return result;
+}
 #endif
 
 #ifdef RT_USING_PM

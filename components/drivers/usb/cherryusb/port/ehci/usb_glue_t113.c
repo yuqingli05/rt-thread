@@ -1,19 +1,27 @@
 /*
- * Copyright (c) 2025, YC113
+ * Copyright (c) 2026, HakumenJean
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Change Logs:
+ * Date           Author       Notes
+ * 2026-01-06     HakumenJean  first version
  */
+
+#include <stdbool.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+
 #include "usbh_core.h"
 #include "usb_hc_ehci.h"
+#ifdef CONFIG_USB_EHCI_WITH_OHCI
 #include "usb_hc_ohci.h"
-
-#include "interrupt.h"
-#include "drv_reg_base.h"
-#include "drv_clock.h"
-
-#if !defined(CONFIG_USB_EHCI_WITH_OHCI)
-#error "t113 must define CONFIG_USB_EHCI_WITH_OHCI for ls/fs device"
 #endif
+
+#include "hal_clk.h"
+#include "hal_reset.h"
+#include "interrupt.h"
 
 #if CONFIG_USBHOST_MAX_BUS != 2
 #error "t113 has 2 usb host controller"
@@ -35,6 +43,13 @@
 #error "t113 usb ehci no iso register"
 #endif
 
+#define USB0_OTG_BASE_ADDR              (0x04100000U)
+#define USB0_PHY_BASE_ADDR              (0x04100400U)
+#define USB0_EHCI_BASE_ADDR             (0x04101000U)
+
+#define USB1_EHCI_BASE_ADDR             (0x04200000U)
+#define USB1_PHY_BASE_ADDR              (0x04200800U)
+
 void usb_select_phyTohci(void)
 {
     *(volatile rt_uint32_t *)(USB0_OTG_BASE_ADDR + 0x420) &= ~(1 << 0);
@@ -42,90 +57,57 @@ void usb_select_phyTohci(void)
 
 void usb_gate_open(rt_uint8_t busid)
 {
-    rt_uint32_t addr;
+    if (busid == 0) {
+        /* otg gate open*/
+        hal_clock_enable(hal_clock_get(HAL_SUNXI_CCU, CLK_BUS_OTG));
 
-    /* otg bus reset and gate open */
-    if (busid == 0)
+        /* otg bus reset */
+        hal_reset_control_reset(hal_reset_control_get(HAL_SUNXI_RESET, RST_BUS_OTG));
+
+        /* ehci gate open */
+        hal_clock_enable(hal_clock_get(HAL_SUNXI_CCU, CLK_BUS_EHCI0));
+
+        /* ehci bus reset */
+        hal_reset_control_reset(hal_reset_control_get(HAL_SUNXI_RESET, RST_BUS_EHCI0));
+
+        /* ohci gate open */
+        hal_clock_enable(hal_clock_get(HAL_SUNXI_CCU, CLK_BUS_OHCI0));
+
+        /* ohci bus reset */
+        hal_reset_control_reset(hal_reset_control_get(HAL_SUNXI_RESET, RST_BUS_OHCI0));
+
+        /* clock enable */
+        hal_clock_enable(hal_clock_get(HAL_SUNXI_CCU, CLK_USB_OHCI0));
+
+        /* reset phy */
+        hal_reset_control_reset(hal_reset_control_get(HAL_SUNXI_RESET, RST_USB_PHY0));
+
+        /* otg phy select */
         usb_select_phyTohci();
+    } else {
+        /* ehci gate open */
+        hal_clock_enable(hal_clock_get(HAL_SUNXI_CCU, CLK_BUS_EHCI1));
 
-    /* reset phy */
-    addr = (rt_uint32_t)&CCU->usb0_clk + busid * 4;
-    *(volatile rt_uint32_t *)addr &= ~(1 << 30);
-    sdelay(10);
-    *(volatile rt_uint32_t *)addr |= 1 << 30;
-    sdelay(10);
+        /* ehci bus reset */
+        hal_reset_control_reset(hal_reset_control_get(HAL_SUNXI_RESET, RST_BUS_EHCI1));
 
-    /* ehci bus reset */
-    CCU->usb_bgr &= ~((1 << 20) << busid);
-    sdelay(10);
-    CCU->usb_bgr |= (1 << 20) << busid;
-    sdelay(10);
+        /* ohci gate open */
+        hal_clock_enable(hal_clock_get(HAL_SUNXI_CCU, CLK_BUS_OHCI1));
 
-    /* ehci gate open */
-    CCU->usb_bgr |= (1 << 4) << busid;
+        /* ohci bus reset */
+        hal_reset_control_reset(hal_reset_control_get(HAL_SUNXI_RESET, RST_BUS_OHCI1));
 
-    /* ohci bus reset */
-    CCU->usb_bgr &= ~((1 << 16) << busid);
-    sdelay(10);
-    CCU->usb_bgr |= (1 << 16) << busid;
-    sdelay(10);
+        /* clock enable */
+        hal_clock_enable(hal_clock_get(HAL_SUNXI_CCU, CLK_USB_OHCI1));
 
-    /* ohci gate open */
-    CCU->usb_bgr |= 1 << busid;
-
-    sdelay(10);
-
-    /* clock enable */
-    *(volatile rt_uint32_t *)addr &= ~(3 << 24);
-    *(volatile rt_uint32_t *)addr |= (1 << 31) | (1 << 24);
-
-    USB_LOG_DBG("usb%d gate : %X, clock : %X\n", busid, CCU->usb_bgr, *(volatile rt_uint32_t *)addr);
+        /* reset phy */
+        hal_reset_control_reset(hal_reset_control_get(HAL_SUNXI_RESET, RST_USB_PHY1));
+    }
 }
 
 void usb_clean_siddp(struct usbh_bus *bus)
 {
     *(volatile rt_uint32_t *)(bus->hcd.reg_base + 0x810) &= ~(1 << 3);
-}
-
-static void usb_new_phyx_tp_write(struct usbh_bus *bus, int addr, int data, int len)
-{
-    rt_uint32_t base = bus->hcd.reg_base;
-
-    for (int i = 0; i < len; i++) {
-        *(volatile rt_uint8_t *)(base + 0x810) |= 1 << 1;
-
-        *(volatile rt_uint8_t *)(base + 0x810 + 1) = addr + i;
-
-        *(volatile rt_uint8_t *)(base + 0x810) &= ~(1 << 0);
-
-        *(volatile rt_uint8_t *)(base + 0x810) &= ~(1 << 7);
-        *(volatile rt_uint8_t *)(base + 0x810) |= (data & 0x1) << 7;
-
-        *(volatile rt_uint8_t *)(base + 0x810) |= 1 << 0;
-
-        *(volatile rt_uint8_t *)(base + 0x810) &= ~(1 << 0);
-
-        *(volatile rt_uint8_t *)(base + 0x810) &= ~(1 << 1);
-
-        data >>= 1;
-    }
-}
-
-void usb_new_phy_init(struct usbh_bus *bus)
-{
-    rt_int32_t value = 0;
-    rt_uint32_t efuse_val = 0x1E5080F;
-
-    usb_new_phyx_tp_write(bus, 0x1C, 0x0, 0x03);
-
-    /* vref mode */
-    usb_new_phyx_tp_write(bus, 0x60, 0x0, 0x01);
-
-    value = (efuse_val & 0x3C0000) >> 18;
-    usb_new_phyx_tp_write(bus, 0x44, value, 0x04);
-
-    value = (efuse_val & 0x1C00000) >> 22;
-    usb_new_phyx_tp_write(bus, 0x36, value, 0x03);
 }
 
 void usb_hci_set_passby(struct usbh_bus *bus)
@@ -142,21 +124,33 @@ void t113_ehci_isr(int vector, void *arg)
 {
     struct usbh_bus *bus = (struct usbh_bus *)arg;
 
+    rt_interrupt_enter();
+
     USB_LOG_DBG("t113_ehci_isr");
 
     extern void USBH_IRQHandler(uint8_t busid);
     USBH_IRQHandler(bus->hcd.hcd_id);
+
+    rt_interrupt_leave();
 }
+
+#ifdef CONFIG_USB_EHCI_WITH_OHCI
 
 void t113_ohci_isr(int vector, void *arg)
 {
     struct usbh_bus *bus = (struct usbh_bus *)arg;
 
+    rt_interrupt_enter();
+
     USB_LOG_DBG("t113_ohci_isr");
 
     extern void OHCI_IRQHandler(uint8_t busid);
     OHCI_IRQHandler(bus->hcd.hcd_id);
+
+    rt_interrupt_leave();
 }
+
+#endif
 
 void usb_hc_low_level_init(struct usbh_bus *bus)
 {
@@ -168,13 +162,17 @@ void usb_hc_low_level_init(struct usbh_bus *bus)
     usb_hci_set_passby(bus);
 
     /* register EHCI interrupt callback */
-    vector = T113_IRQ_USB0_EHCI + (bus->busid > 0 ? 3 : 0);
+    vector = SUNXI_IRQ_USB0_EHCI + (bus->busid > 0 ? 3 : 0);
     rt_hw_interrupt_install(vector, t113_ehci_isr, bus, RT_NULL);
+    rt_hw_interrupt_set_priority(vector, 11 << 4);
     rt_hw_interrupt_umask(vector);
 
     /* register OHCI interrupt callback */
+#ifdef CONFIG_USB_EHCI_WITH_OHCI
     rt_hw_interrupt_install(vector + 1, t113_ohci_isr, bus, RT_NULL);
+    rt_hw_interrupt_set_priority(vector, 11 << 4);
     rt_hw_interrupt_umask(vector + 1);
+#endif
 
     USB_LOG_DBG("usb%d vector : %d, phy : %X\n", bus->busid, vector, *(volatile rt_uint32_t *)(bus->hcd.reg_base + 0x810));
     USB_LOG_DBG("usb%d hc low level init success\n", bus->busid);
@@ -199,12 +197,12 @@ int __usbh_init(void)
 {
 #ifdef T113_USING_USB0_HOST
     /* USB0 MSC test OK */
-    usbh_initialize(0, USB0_BASE_ADDR);
+    usbh_initialize(0, USB0_EHCI_BASE_ADDR, NULL);
 #endif
 
 #ifdef T113_USING_USB1_HOST
     /* USB1 MSC test OK */
-    usbh_initialize(1, USB1_BASE_ADDR);
+    usbh_initialize(1, USB1_EHCI_BASE_ADDR, NULL);
 #endif
     return 0;
 }
@@ -212,8 +210,26 @@ int __usbh_init(void)
 #ifdef PKG_CHERRYUSB_HOST
 
 #include <rtthread.h>
+#include <rthw.h>
 #include <rtdevice.h>
 
 INIT_ENV_EXPORT(__usbh_init);
+
+#ifdef CONFIG_USB_DCACHE_ENABLE
+void usb_dcache_clean(uintptr_t addr, size_t size)
+{
+    rt_hw_cpu_dcache_ops(RT_HW_CACHE_FLUSH, (void *)addr, size);
+}
+
+void usb_dcache_invalidate(uintptr_t addr, size_t size)
+{
+    rt_hw_cpu_dcache_ops(RT_HW_CACHE_INVALIDATE, (void *)addr, size);
+}
+
+void usb_dcache_flush(uintptr_t addr, size_t size)
+{
+    rt_hw_cpu_dcache_ops(RT_HW_CACHE_FLUSH, (void *)addr, size);
+}
+#endif
 
 #endif

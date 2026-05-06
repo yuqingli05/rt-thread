@@ -3,7 +3,65 @@
 
 /* RT-Thread Kernel */
 
-#define RT_NAME_MAX 8
+/* klibc options */
+
+/* rt_vsnprintf options */
+
+/* end of rt_vsnprintf options */
+
+/* rt_vsscanf options */
+
+/* end of rt_vsscanf options */
+
+/* rt_memset options */
+
+/* end of rt_memset options */
+
+/* rt_memcpy options */
+
+/* end of rt_memcpy options */
+
+/* rt_memmove options */
+
+/* end of rt_memmove options */
+
+/* rt_memcmp options */
+
+/* end of rt_memcmp options */
+
+/* rt_strstr options */
+
+/* end of rt_strstr options */
+
+/* rt_strcasecmp options */
+
+/* end of rt_strcasecmp options */
+
+/* rt_strncpy options */
+
+/* end of rt_strncpy options */
+
+/* rt_strcpy options */
+
+/* end of rt_strcpy options */
+
+/* rt_strncmp options */
+
+/* end of rt_strncmp options */
+
+/* rt_strcmp options */
+
+/* end of rt_strcmp options */
+
+/* rt_strlen options */
+
+/* end of rt_strlen options */
+
+/* rt_strnlen options */
+
+/* end of rt_strnlen options */
+/* end of klibc options */
+#define RT_NAME_MAX 12
 #define RT_USING_NANO
 #define RT_CPUS_NR 1
 #define RT_ALIGN_SIZE 8
@@ -12,13 +70,9 @@
 #define RT_TICK_PER_SECOND 100
 #define IDLE_THREAD_STACK_SIZE 256
 
-/* kservice optimization */
+/* kservice options */
 
-/* end of kservice optimization */
-
-/* klibc optimization */
-
-/* end of klibc optimization */
+/* end of kservice options */
 
 /* Inter-Thread communication */
 
@@ -36,7 +90,7 @@
 #define RT_USING_SMALL_MEM_AS_HEAP
 #define RT_USING_HEAP
 /* end of Memory Management */
-#define RT_VER_NUM 0x50200
+#define RT_VER_NUM 0x50201
 #define RT_BACKTRACE_LEVEL_MAX_NR 32
 /* end of RT-Thread Kernel */
 #define ARCH_ARM
@@ -156,6 +210,30 @@
 /* Kendryte SDK */
 
 /* end of Kendryte SDK */
+
+/* WCH HAL & SDK Drivers */
+
+/* end of WCH HAL & SDK Drivers */
+
+/* AT32 HAL & SDK Drivers */
+
+/* end of AT32 HAL & SDK Drivers */
+
+/* HC32 DDL Drivers */
+
+/* end of HC32 DDL Drivers */
+
+/* NXP HAL & SDK Drivers */
+
+/* end of NXP HAL & SDK Drivers */
+
+/* NUVOTON Drivers */
+
+/* end of NUVOTON Drivers */
+
+/* GD32 Drivers */
+
+/* end of GD32 Drivers */
 /* end of HAL & SDK Drivers */
 
 /* sensors drivers */

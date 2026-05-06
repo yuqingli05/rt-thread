@@ -1,4 +1,4 @@
-# 第一部分：NUCLEO-U575ZI-Q 开发板 BSP 说明
+# 第一部分：STM32 B-U585I-IOT02A 开发板 BSP 说明
 
 [English](README.md) | **中文**
 
@@ -58,6 +58,14 @@ STM32 B-U585I-IOT02A 是 ST 推出的一款基于 ARM Cortex-M33 内核的开发
 ### 快速上手
 
 本 BSP 为开发者提供 MDK5 和 IAR 工程，并且支持 GCC 开发环境。下面以 MDK5 开发环境为例，介绍如何将系统运行起来。
+
+**请注意！！！**
+
+在执行编译工作前请先打开ENV执行以下指令（该指令用于拉取必要的HAL库及CMSIS库，否则无法通过编译）：
+
+```bash
+pkgs --update
+```
 
 #### 硬件连接
 

@@ -3,7 +3,7 @@ import os
 # toolchains options
 ARCH='arm'
 CPU='cortex-m3'
-CROSS_TOOL='keil'
+CROSS_TOOL='gcc'
 
 # bsp lib config
 BSP_LIBRARY_TYPE = None
@@ -73,7 +73,7 @@ elif PLATFORM == 'armcc':
     DEVICE = ' --cpu Cortex-M3.fp'
     CFLAGS = '-c ' + DEVICE + ' --apcs=interwork --c99'
     AFLAGS = DEVICE + ' --apcs=interwork '
-    LFLAGS = DEVICE + ' --scatter "board\linker_scripts\link.sct" --info sizes --info totals --info unused --info veneers --list rtthread.map --strict'
+    LFLAGS = DEVICE + r' --scatter "board\linker_scripts\link.sct" --info sizes --info totals --info unused --info veneers --list rtthread.map --strict'
     CFLAGS += ' -I' + EXEC_PATH + '/ARM/ARMCC/include'
     LFLAGS += ' --libpath=' + EXEC_PATH + '/ARM/ARMCC/lib'
 

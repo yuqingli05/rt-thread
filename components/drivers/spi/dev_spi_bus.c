@@ -6,6 +6,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2022-12-06     GuEe-GUI     first version
+ * 2025-12-25     lhxj         mark OFW node as taken to prevent platform bus duplication; fix cppcheck warning
  */
 
 #include "dev_spi_dm.h"
@@ -34,7 +35,19 @@ void spi_bus_scan_devices(struct rt_spi_bus *bus)
                 continue;
             }
 
-            spi_dev = rt_calloc(1, sizeof(*spi_dev));
+            if ((bus->mode & RT_SPI_BUS_MODE_SPI) == RT_SPI_BUS_MODE_SPI)
+            {
+                spi_dev = rt_calloc(1, sizeof(struct rt_spi_device));
+            }
+            else if ((bus->mode & RT_SPI_BUS_MODE_QSPI) == RT_SPI_BUS_MODE_QSPI)
+            {
+                spi_dev = rt_calloc(1, sizeof(struct rt_qspi_device));
+            }
+            else
+            {
+                LOG_E("Unknown bus mode = %x", bus->mode);
+                RT_ASSERT(0);
+            }
 
             if (!spi_dev)
             {
@@ -56,6 +69,9 @@ void spi_bus_scan_devices(struct rt_spi_bus *bus)
             {
                 continue;
             }
+
+            /* Mark this OFW node as taken to prevent platform bus from creating duplicate device */
+            spi_dev_np->dev = &spi_dev->parent;
 
             rt_spi_device_register(spi_dev);
         }
@@ -151,7 +167,7 @@ static rt_err_t spi_probe(rt_device_t dev)
         rt_spidev_device_init(device, rt_dm_dev_get_name(&device->parent));
     }
 
-    return err;
+    return RT_EOK;
 }
 
 static rt_err_t spi_remove(rt_device_t dev)

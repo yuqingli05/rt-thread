@@ -6,9 +6,11 @@
  * Change Logs:
  * Date         Author        Notes
  * 2018-12-04   balanceTWK    first version
- * 2020-10-14   Dozingfiretruck Porting for stm32wbxx
+ * 2020-10-14   PeakRacing Porting for stm32wbxx
  * 2021-02-05   Meco Man      fix the problem of mixing local time and UTC time
  * 2021-07-05   iysheng       implement RTC framework V2.0
+ * 2025-06-05   RCSN          add local time conversion for get timeval and set stamp
+ * 0206-02-03   wdfk_prog     compute tv_usec from SecondFraction/SubSeconds
  */
 
 #include "board.h"
@@ -45,12 +47,20 @@ static RTC_AlarmTypeDef Alarm_InitStruct = { 0 };
 static struct rtc_device_object rtc_device;
 static RTC_HandleTypeDef RTC_Handler;
 
+#ifdef SOC_SERIES_STM32H7
+rt_weak uint32_t HAL_RTCEx_BKUPRead(const RTC_HandleTypeDef *hrtc, uint32_t BackupRegister)
+#else
 rt_weak uint32_t HAL_RTCEx_BKUPRead(RTC_HandleTypeDef *hrtc, uint32_t BackupRegister)
+#endif
 {
     return (~BKUP_REG_DATA);
 }
 
+#ifdef SOC_SERIES_STM32H7
+rt_weak void HAL_RTCEx_BKUPWrite(const RTC_HandleTypeDef *hrtc, uint32_t BackupRegister, uint32_t Data)
+#else
 rt_weak void HAL_RTCEx_BKUPWrite(RTC_HandleTypeDef *hrtc, uint32_t BackupRegister, uint32_t Data)
+#endif
 {
     return;
 }
@@ -71,12 +81,35 @@ static rt_err_t stm32_rtc_get_timeval(struct timeval *tv)
     tm_new.tm_mon  = RTC_DateStruct.Month - 1;
     tm_new.tm_year = RTC_DateStruct.Year + 100;
 
+#ifdef RT_ALARM_USING_LOCAL_TIME
+    tv->tv_sec = mktime(&tm_new);
+#else
     tv->tv_sec = timegm(&tm_new);
-
-#if defined(SOC_SERIES_STM32H7)
-    tv->tv_usec = (255.0 - RTC_TimeStruct.SubSeconds * 1.0) / 256.0 * 1000.0 * 1000.0;
 #endif
-
+    tv->tv_usec = 0U;
+/* F1 RTC does not have SSR/PRER */
+#if defined(RTC_SSR_SS) && defined(RTC_PRER_PREDIV_S)
+    /*
+    * You can use SubSeconds and SecondFraction (sTime structure fields
+    * returned) to convert SubSeconds value in second fraction ratio with
+    * time unit following generic formula:
+    * Second fraction ratio * time_unit =
+    *    [(SecondFraction - SubSeconds) / (SecondFraction + 1)] * time_unit
+    * This conversion can be performed only if no shift operation is pending
+    * (ie. SHFP=0) when PREDIV_S >= SS
+    */
+#if defined(RTC_ISR_SHPF)
+    if (READ_BIT(RTC->ISR, RTC_ISR_SHPF) == 0U)
+#endif /* RTC_ISR_SHPF */
+    {
+        uint32_t sf = RTC_TimeStruct.SecondFraction;
+        uint32_t ss = RTC_TimeStruct.SubSeconds;
+        if ((sf != 0U) && (ss <= sf))
+        {
+            tv->tv_usec = (uint32_t)(((sf - ss) * 1000000ULL) / (sf + 1U));
+        }
+    }
+#endif /* defined(RTC_SSR_SS) && defined(RTC_PRER_PREDIV_S) */
     return RT_EOK;
 }
 
@@ -85,8 +118,11 @@ static rt_err_t set_rtc_time_stamp(time_t time_stamp)
     RTC_TimeTypeDef RTC_TimeStruct = {0};
     RTC_DateTypeDef RTC_DateStruct = {0};
     struct tm tm = {0};
-
+#ifdef RT_ALARM_USING_LOCAL_TIME
+    localtime_r(&time_stamp,&tm);
+#else
     gmtime_r(&time_stamp, &tm);
+#endif
     if (tm.tm_year < 100)
     {
         return -RT_ERROR;
@@ -318,6 +354,11 @@ static rt_err_t stm32_rtc_set_alarm(struct rt_rtc_wkalarm *alarm)
         rtc_device.wkalarm.tm_hour = alarm->tm_hour;
         rtc_device.wkalarm.tm_min = alarm->tm_min;
         rtc_device.wkalarm.tm_sec = alarm->tm_sec;
+        /* must include the year, month, and day */
+        /* as the alarm in RT_ALARM_ONESHOT mode compares the current timestamp with the alarm timestamp */
+        rtc_device.wkalarm.tm_year = alarm->tm_year;
+        rtc_device.wkalarm.tm_mon = alarm->tm_mon;
+        rtc_device.wkalarm.tm_mday = alarm->tm_mday;
         rtc_alarm_time_set(&rtc_device);
     }
     else

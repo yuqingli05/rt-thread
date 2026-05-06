@@ -85,6 +85,12 @@ menu "On-chip Peripheral Drivers"
                         range 0 65535
                         depends on RT_USING_SERIAL_V2
                         default 256
+
+                    config BSP_UART1_DMA_PING_BUFSIZE
+                        int "Set UART1 RX DMA ping-pong buffer size"
+                        range 32 65535
+                        depends on RT_USING_SERIAL_V2 && BSP_UART1_RX_USING_DMA
+                        default 64
                 endif
 
             menuconfig BSP_USING_UART2
@@ -112,6 +118,12 @@ menu "On-chip Peripheral Drivers"
                         range 0 65535
                         depends on RT_USING_SERIAL_V2
                         default 0
+
+                    config BSP_UART2_DMA_PING_BUFSIZE
+                        int "Set UART2 RX DMA ping-pong buffer size"
+                        range 32 65535
+                        depends on RT_USING_SERIAL_V2 && BSP_UART2_RX_USING_DMA
+                        default 64
                 endif
 
             menuconfig BSP_USING_UART3
@@ -156,6 +168,12 @@ menu "On-chip Peripheral Drivers"
                         range 0 65535
                         depends on RT_USING_SERIAL_V2
                         default 256
+
+                    config BSP_UART4_DMA_PING_BUFSIZE
+                        int "Set UART4 RX DMA ping-pong buffer size"
+                        range 32 65535
+                        depends on RT_USING_SERIAL_V2 && BSP_UART4_RX_USING_DMA
+                        default 64
                 endif
 
             menuconfig BSP_USING_UART5
@@ -183,6 +201,12 @@ menu "On-chip Peripheral Drivers"
                         range 0 65535
                         depends on RT_USING_SERIAL_V2
                         default 256
+
+                    config BSP_UART5_DMA_PING_BUFSIZE
+                        int "Set UART5 RX DMA ping-pong buffer size"
+                        range 32 65535
+                        depends on RT_USING_SERIAL_V2 && BSP_UART5_RX_USING_DMA
+                        default 64
                 endif
 
             menuconfig BSP_USING_UART6
@@ -616,11 +640,11 @@ menu "On-chip Peripheral Drivers"
                 endif
         endif
 
-    menuconfig BSP_USING_HWTIMER
+    menuconfig BSP_USING_CLOCK_TIMER
         bool "Enable Hw Timer"
         default n
-        select RT_USING_HWTIMER
-        if BSP_USING_HWTIMER
+        select RT_USING_CLOCK_TIME
+        if BSP_USING_CLOCK_TIMER
             config BSP_USING_TMRA_1
                 bool "Use Timer_a1 As The Hw Timer"
                 default n
@@ -638,10 +662,26 @@ menu "On-chip Peripheral Drivers"
                 default n
         endif
 
+    menuconfig BSP_USING_INPUT_CAPTURE
+        bool "Enable Input Capture"
+        default n
+        select RT_USING_INPUT_CAPTURE
+        if BSP_USING_INPUT_CAPTURE
+            menuconfig BSP_USING_INPUT_CAPTURE_TMR6
+                bool "Use Timer6 As The Input Capture"
+                default n
+                if BSP_USING_INPUT_CAPTURE_TMR6
+                    config BSP_USING_INPUT_CAPTURE_TMR6_1
+                        bool "unit 1"
+                    config BSP_USING_INPUT_CAPTURE_TMR6_2
+                        bool "unit 2"
+                endif
+        endif
+
     menuconfig BSP_USING_SENSOR
         bool "Enable SENSOR"
         default n
-        select RT_USING_HWTIMER
+        select RT_USING_CLOCK_TIME
         if BSP_USING_SENSOR
             config BSP_USING_TMR0_2B
                 bool "Use KEYSCAN"

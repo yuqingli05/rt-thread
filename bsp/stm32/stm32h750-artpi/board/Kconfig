@@ -177,6 +177,12 @@ menu "On-chip Peripheral Drivers"
                         depends on BSP_USING_UART1
                         default 0
 
+                    config BSP_UART1_DMA_PING_BUFSIZE
+                        int "Set UART1 RX DMA ping-pong buffer size"
+                        range 32 65535
+                        depends on RT_USING_SERIAL_V2 && BSP_UART1_RX_USING_DMA
+                        default 64                        
+
                 endif
 
             menuconfig BSP_USING_UART3
@@ -236,7 +242,7 @@ menu "On-chip Peripheral Drivers"
         bool "Enable lptimer"
         default n
         select RT_USING_LPTIMER
-        select RT_USING_HWTIMER
+        select RT_USING_CLOCK_TIME
         if BSP_USING_LPTIM
             config BSP_USING_LPTIM1
                 bool "Enable LPTIM1"

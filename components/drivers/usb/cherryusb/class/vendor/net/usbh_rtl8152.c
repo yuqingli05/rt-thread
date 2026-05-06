@@ -12,10 +12,11 @@
 
 #define DEV_FORMAT "/dev/rtl8152"
 
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_rx_buffer[CONFIG_USBHOST_RTL8152_ETH_MAX_RX_SIZE];
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_tx_buffer[CONFIG_USBHOST_RTL8152_ETH_MAX_TX_SIZE];
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_inttx_buffer[2];
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_buf[32];
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_rx_buffer[USB_ALIGN_UP(CONFIG_USBHOST_RTL8152_ETH_MAX_RX_SIZE, CONFIG_USB_ALIGN_SIZE)];
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_tx_buffer[USB_ALIGN_UP(CONFIG_USBHOST_RTL8152_ETH_MAX_TX_SIZE, CONFIG_USB_ALIGN_SIZE)];
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_inttx_buffer[USB_ALIGN_UP(2, CONFIG_USB_ALIGN_SIZE)];
+
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_buf[USB_ALIGN_UP(32, CONFIG_USB_ALIGN_SIZE)];
 
 static struct usbh_rtl8152 g_rtl8152_class;
 
@@ -964,7 +965,7 @@ static int usbh_rtl8152_read_regs(struct usbh_rtl8152 *rtl8152_class,
     if (ret < 8) {
         return ret;
     }
-    memcpy(data, g_rtl8152_buf, ret - 8);
+    memcpy(data, g_rtl8152_buf, MIN(ret - 8, size));
 
     return ret;
 }
@@ -1033,17 +1034,17 @@ static int generic_ocp_read(struct usbh_rtl8152 *tp, uint16_t index, uint16_t si
 static int generic_ocp_write(struct usbh_rtl8152 *tp, uint16_t index, uint16_t byteen,
                              uint16_t size, void *data, uint16_t type)
 {
-    int ret;
+    int ret = -USB_ERR_INVAL;
     uint16_t byteen_start, byteen_end, byen;
     uint16_t limit = 512;
     uint8_t *buf = data;
 
     /* both size and indix must be 4 bytes align */
     if ((size & 3) || !size || (index & 3) || !buf)
-        return -USB_ERR_INVAL;
+        return ret;
 
     if ((uint32_t)index + (uint32_t)size > 0xffff)
-        return -USB_ERR_INVAL;
+        return ret;
 
     byteen_start = byteen & BYTE_EN_START_MASK;
     byteen_end = byteen & BYTE_EN_END_MASK;
@@ -1120,7 +1121,7 @@ static inline int usb_ocp_write(struct usbh_rtl8152 *tp, uint16_t index, uint16_
 
 static uint32_t ocp_read_dword(struct usbh_rtl8152 *tp, uint16_t type, uint16_t index)
 {
-    uint32_t data;
+    uint32_t data = 0;
 
     generic_ocp_read(tp, index, sizeof(data), &data, type);
 
@@ -1137,7 +1138,7 @@ static void ocp_write_dword(struct usbh_rtl8152 *tp, uint16_t type, uint16_t ind
 static uint16_t ocp_read_word(struct usbh_rtl8152 *tp, uint16_t type, uint16_t index)
 {
     uint32_t data;
-    uint32_t tmp;
+    uint32_t tmp = 0;
     uint16_t byen = BYTE_EN_WORD;
     uint8_t shift = index & 2;
 
@@ -1177,7 +1178,7 @@ static void ocp_write_word(struct usbh_rtl8152 *tp, uint16_t type, uint16_t inde
 static uint8_t ocp_read_byte(struct usbh_rtl8152 *tp, uint16_t type, uint16_t index)
 {
     uint32_t data;
-    uint32_t tmp;
+    uint32_t tmp = 0;
     uint8_t shift = index & 3;
 
     index &= ~3;
@@ -1253,7 +1254,7 @@ static inline int r8152_mdio_read(struct usbh_rtl8152 *tp, uint32_t reg_addr)
 static uint8_t usbh_rtl8152_get_version(struct usbh_rtl8152 *rtl8152_class)
 {
     uint8_t version;
-    uint32_t temp;
+    uint32_t temp = 0;
     uint32_t ocp_data;
 
     usbh_rtl8152_read_regs(rtl8152_class, PLA_TCR0, MCU_TYPE_PLA, 4, &temp);
@@ -1595,8 +1596,8 @@ static void r8153_teredo_off(struct usbh_rtl8152 *tp)
         case RTL_VER_15:
         default:
             /* The bit 0 ~ 7 are relative with teredo settings. They are
-		 * W1C (write 1 to clear), so set all 1 to disable it.
-		 */
+             * W1C (write 1 to clear), so set all 1 to disable it.
+             */
             ocp_write_byte(tp, MCU_TYPE_PLA, PLA_TEREDO_CFG, 0xff);
             break;
     }
@@ -2044,12 +2045,12 @@ static int usbh_rtl8152_connect(struct usbh_hubport *hport, uint8_t intf)
     rtl8152_class->rtl_ops.up(rtl8152_class);
 
     if (rtl8152_class->rx_buf_sz > CONFIG_USBHOST_RTL8152_ETH_MAX_RX_SIZE) {
-        USB_LOG_ERR("rx_buf_sz is overflow, default is %d\r\n", CONFIG_USBHOST_RTL8152_ETH_MAX_RX_SIZE);
+        USB_LOG_ERR("rx_buf_sz is overflow, default is %d\r\n", (unsigned int)CONFIG_USBHOST_RTL8152_ETH_MAX_RX_SIZE);
         return -USB_ERR_NOMEM;
     }
 
     memset(mac_buffer, 0, 12);
-    ret = usbh_get_string_desc(rtl8152_class->hport, 3, (uint8_t *)mac_buffer);
+    ret = usbh_get_string_desc(rtl8152_class->hport, 3, (uint8_t *)mac_buffer, 12);
     if (ret < 0) {
         return ret;
     }
@@ -2120,6 +2121,7 @@ static int usbh_rtl8152_disconnect(struct usbh_hubport *hport, uint8_t intf)
         }
 
         if (hport->config.intf[intf].devname[0] != '\0') {
+            usb_osal_thread_schedule_other();
             USB_LOG_INFO("Unregister rtl8152 Class:%s\r\n", hport->config.intf[intf].devname);
             usbh_rtl8152_stop(rtl8152_class);
         }
@@ -2247,16 +2249,6 @@ int usbh_rtl8152_eth_output(uint32_t buflen)
 
     usbh_bulk_urb_fill(&g_rtl8152_class.bulkout_urb, g_rtl8152_class.hport, g_rtl8152_class.bulkout, g_rtl8152_tx_buffer, buflen + sizeof(struct tx_desc), USB_OSAL_WAITING_FOREVER, NULL, NULL);
     return usbh_submit_urb(&g_rtl8152_class.bulkout_urb);
-}
-
-__WEAK void usbh_rtl8152_run(struct usbh_rtl8152 *rtl8152_class)
-{
-    (void)rtl8152_class;
-}
-
-__WEAK void usbh_rtl8152_stop(struct usbh_rtl8152 *rtl8152_class)
-{
-    (void)rtl8152_class;
 }
 
 static const uint16_t rtl_id_table[][2] = {

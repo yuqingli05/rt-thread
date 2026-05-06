@@ -29,6 +29,10 @@ on:
   workflow_dispatch:
   repository_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read # to fetch code (actions/checkout)
 
@@ -42,7 +46,7 @@ jobs:
     env:
       TEST_BSP_ROOT: bsp/stm32/stm32f407-atk-explorer
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@main
 
     - name: Install Tools
       shell: bash
